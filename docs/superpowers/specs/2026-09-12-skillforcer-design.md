@@ -6,16 +6,25 @@ Status: Approved for planning
 ## 1. Problem
 
 An agent has a project skill (e.g. `tech-writing`) whose description alone is
-insufficient — its body must be loaded for the guidance to be applied. Over a
-long session, context rot means the skill body drifts out of the model's
-working context, so writes that the skill governs (e.g. code comments) stop
-following it. Re-reading the skill fixes the output, but nothing forces the
-re-read at the moment it matters.
+insufficient — its body must be loaded for the guidance to be applied. Two
+failure cases matter equally:
+
+- **Never loaded.** The agent goes straight to a write the skill governs (e.g.
+  code comments) without ever loading the skill body, so the guidance is never
+  in context.
+- **Loaded but drifted.** In a long session, context rot pushes a previously
+  loaded skill body out of the model's working context, so writes stop
+  following it.
+
+In both cases the description was not enough; only loading (or re-loading) the
+body fixes the output, and nothing forces that load at the moment it matters.
 
 skillforcer forces it: before an agent may make a write that matches a
 configured rule, the skill that governs that write must have been loaded
-recently enough. Otherwise the write is denied with an instruction to load the
-skill.
+recently enough — where "recently enough" spans from "at all this session" to a
+tight rolling window. Otherwise the write is denied with an instruction to load
+the skill. The `session` freshness mode covers the never-loaded case; the
+`minutes`/`turns`/`tokens` modes cover drift.
 
 ## 2. Scope
 
