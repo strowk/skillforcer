@@ -106,16 +106,18 @@ Exactly one of the two is given per rule.
 
 ### 5.2 Content extraction per tool
 
-The "written text" a `content` regex runs against depends on the tool:
+The "written text" a `content` regex runs against depends on the tool. Field
+names below are verified against live transcript payloads:
 
-- `Write` → `tool_input.content`
-- `Edit` → `tool_input.new_string`
-- `MultiEdit` → concatenation of each `edits[].new_string`
-- `NotebookEdit` → `tool_input.new_source`
+- `Write` → path `file_path`, content `content`
+- `Edit` → path `file_path`, content `new_string` (also has `old_string`,
+  `replace_all`)
+- `MultiEdit` → path `file_path`, content = concatenation of each
+  `edits[].new_string` (not present in current Claude Code; handled
+  defensively)
+- `NotebookEdit` → path `notebook_path`, content `new_source`
 
-Exact field names are verified against live payloads during implementation
-(`skillforcer check --stdin` and a debug logging path assist this); the guard
-fails open on an unrecognized shape.
+The guard fails open (allows) on an unrecognized tool shape.
 
 ### 5.3 Presets
 
