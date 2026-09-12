@@ -35,7 +35,7 @@ source of truth, so detection holds even across the recorder.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow-dark.svg">
-  <img alt="skillforcer decision loop: the PreToolUse guard checks the required skill's freshness against session state; a fresh skill lets the write through, a stale one is denied with a reason, Claude loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
+  <img alt="skillforcer decision loop: the PreToolUse guard matches each write against .skillforcer.toml rules (path globs, content regex) and checks the required skill's freshness against session state (writes no rule matches pass through unchecked); a fresh skill lets the write through, a stale one is denied with a reason, Claude loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
 </picture>
 
 ## Install

@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 470" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" role="img" aria-labelledby="t">
-  <title id="t">skillforcer decision loop: a PreToolUse guard denies governed writes until the required skill has been loaded recently; skill loads are captured by a PostToolUse recorder hook into session state, which the guard reads, so the retried write is allowed</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -34 940 504" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" role="img" aria-labelledby="t">
+  <title id="t">skillforcer decision loop: a PreToolUse guard matches each write against .skillforcer.toml rules (path globs, content regex) and denies governed writes until the required skill has been loaded recently, while unmatched writes pass through unchecked; skill loads are captured by a PostToolUse recorder hook into session state, which the guard reads, so the retried write is allowed</title>
   <defs>
     <marker id="m-mut" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#898781"/>
@@ -15,80 +15,107 @@
     </marker>
   </defs>
 
+  <!-- ═══ PreToolUse hook container ═══ -->
+  <rect x="214" y="10" width="488" height="122" rx="14" fill="none" stroke="#898781" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="6 4"/>
+  <text x="694" y="28" text-anchor="end" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; HOOK (PreToolUse)</text>
+
   <!-- ═══ flow arrows ═══ -->
-  <line x1="264" y1="74" x2="350" y2="74" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
-  <line x1="614" y1="74" x2="690" y2="74" stroke="#0ca30c" stroke-width="1.6" marker-end="url(#m-good)"/>
-  <text x="652" y="60" text-anchor="middle" font-size="12" font-weight="600" fill="#0ca30c">&#10003; fresh</text>
+  <line x1="200" y1="74" x2="218" y2="74" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
+  <line x1="414" y1="74" x2="432" y2="74" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
+  <line x1="694" y1="74" x2="732" y2="74" stroke="#0ca30c" stroke-width="1.6" marker-end="url(#m-good)"/>
+  <text x="721" y="52" text-anchor="middle" font-size="13" font-weight="600" fill="#0ca30c">&#10003;</text>
+  <text x="721" y="64" text-anchor="middle" font-size="10.5" font-weight="600" fill="#0ca30c">fresh</text>
 
-  <line x1="560" y1="116" x2="560" y2="350" stroke="#d03b3b" stroke-width="1.6" marker-end="url(#m-crit)"/>
-  <text x="572" y="228" font-size="12" font-weight="600" fill="#d03b3b">&#10005; stale</text>
-  <text x="572" y="244" font-size="11" fill="#52514e">or never loaded</text>
+  <path d="M318,32 L318,0 Q318,-12 330,-12 L813,-12 Q825,-12 825,0 L825,28" fill="none" stroke="#898781" stroke-width="1.4" marker-end="url(#m-mut)"/>
+  <text x="570" y="-18" text-anchor="middle" font-size="10.5" fill="#52514e">no rule matches</text>
 
-  <line x1="352" y1="396" x2="270" y2="396" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
+  <line x1="640" y1="116" x2="640" y2="350" stroke="#d03b3b" stroke-width="1.6" marker-end="url(#m-crit)"/>
+  <text x="628" y="232" text-anchor="end" font-size="12" font-weight="600" fill="#d03b3b">&#10005; stale</text>
+  <text x="628" y="248" text-anchor="end" font-size="11" fill="#52514e">or never loaded</text>
+
+  <line x1="436" y1="396" x2="270" y2="396" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
 
   <line x1="150" y1="354" x2="150" y2="122" stroke="#898781" stroke-width="1.6" marker-end="url(#m-mut)"/>
   <circle cx="170" cy="228" r="9" fill="#eb6834"/>
-  <text x="170" y="232" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">5</text>
+  <text x="170" y="232" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">6</text>
   <text x="185" y="232" font-size="12" font-weight="600" fill="#0b0b0b">retry</text>
   <text x="162" y="250" font-size="11" fill="#52514e">skill now fresh</text>
 
   <!-- ═══ recording spine (dashed): Skill load ⇢ recorder ⇢ state ⇢ guard ═══ -->
-  <line x1="240" y1="352" x2="296" y2="334" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
-  <text x="312" y="348" font-size="10.5" fill="#52514e">fires on every Skill load</text>
+  <line x1="240" y1="352" x2="376" y2="334" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
+  <text x="392" y="348" font-size="10.5" fill="#52514e">fires on every Skill load</text>
 
-  <line x1="390" y1="254" x2="390" y2="232" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
-  <text x="402" y="246" font-size="10.5" fill="#52514e">logs the load</text>
+  <line x1="470" y1="254" x2="470" y2="232" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
+  <text x="482" y="246" font-size="10.5" fill="#52514e">logs the load</text>
 
-  <line x1="390" y1="138" x2="390" y2="118" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
-  <text x="402" y="136" font-size="10.5" fill="#52514e">guard reads freshness</text>
+  <line x1="470" y1="138" x2="470" y2="118" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
+  <text x="482" y="127" font-size="10.5" fill="#52514e">guard reads freshness</text>
+
+  <line x1="714" y1="166" x2="700" y2="138" stroke="#2a78d6" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#m-blue)"/>
 
   <!-- ═══ ① Write / Edit ═══ -->
-  <rect x="40" y="36" width="220" height="76" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
-  <circle cx="234" cy="62" r="12" fill="#eb6834"/>
-  <text x="234" y="66.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text>
+  <rect x="40" y="36" width="160" height="76" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
+  <circle cx="174" cy="62" r="12" fill="#eb6834"/>
+  <text x="174" y="66.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text>
   <text x="56" y="58" font-size="9" letter-spacing="0.5" fill="#898781">CLAUDE</text>
   <text x="56" y="79" font-size="15" font-weight="600" fill="#0b0b0b">Write / Edit</text>
-  <text x="56" y="98" font-size="12" fill="#52514e">a file a rule governs</text>
+  <text x="56" y="98" font-size="12" fill="#52514e">every write attempt</text>
 
-  <!-- ═══ ② Freshness guard ═══ -->
-  <rect x="360" y="36" width="250" height="76" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
-  <circle cx="584" cy="62" r="12" fill="#2a78d6"/>
-  <text x="584" y="66.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text>
-  <text x="376" y="58" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; HOOK (PreToolUse)</text>
-  <text x="376" y="79" font-size="15" font-weight="600" fill="#0b0b0b">Freshness guard</text>
-  <text x="376" y="98" font-size="12" fill="#52514e">required skill loaded recently?</text>
+  <!-- ═══ ② Rule match ═══ -->
+  <rect x="226" y="36" width="184" height="84" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
+  <circle cx="384" cy="62" r="12" fill="#2a78d6"/>
+  <text x="384" y="66.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text>
+  <text x="242" y="56" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER</text>
+  <text x="242" y="77" font-size="15" font-weight="600" fill="#0b0b0b">Rule match</text>
+  <text x="242" y="94" font-family="ui-monospace, Consolas, Menlo, monospace" font-size="10.5" fill="#52514e">glob: src/**/*.rs</text>
+  <text x="242" y="109" font-family="ui-monospace, Consolas, Menlo, monospace" font-size="10.5" fill="#52514e">regex: &#8220;//&#8221;</text>
+
+  <!-- ═══ ③ Freshness guard ═══ -->
+  <rect x="440" y="36" width="250" height="76" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
+  <circle cx="664" cy="62" r="12" fill="#2a78d6"/>
+  <text x="664" y="66.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text>
+  <text x="456" y="58" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER</text>
+  <text x="456" y="79" font-size="15" font-weight="600" fill="#0b0b0b">Freshness guard</text>
+  <text x="456" y="98" font-size="12" fill="#52514e">required skill loaded recently?</text>
 
   <!-- ═══ ✓ allowed ═══ -->
-  <rect x="700" y="36" width="200" height="76" rx="10" fill="#0ca30c" fill-opacity="0.07" stroke="#0ca30c" stroke-opacity="0.55" stroke-width="1"/>
-  <text x="716" y="58" font-size="9" letter-spacing="0.5" fill="#898781">OUTCOME</text>
-  <text x="716" y="79" font-size="15" font-weight="600" fill="#0b0b0b"><tspan fill="#0ca30c">&#10003;</tspan> Write allowed</text>
-  <text x="716" y="98" font-size="12" fill="#52514e">guidance is in context</text>
+  <rect x="740" y="36" width="170" height="76" rx="10" fill="#0ca30c" fill-opacity="0.07" stroke="#0ca30c" stroke-opacity="0.55" stroke-width="1"/>
+  <text x="756" y="58" font-size="9" letter-spacing="0.5" fill="#898781">OUTCOME</text>
+  <text x="756" y="79" font-size="15" font-weight="600" fill="#0b0b0b"><tspan fill="#0ca30c">&#10003;</tspan> Write allowed</text>
+  <text x="756" y="98" font-size="12" fill="#52514e">guidance is in context</text>
 
   <!-- ═══ session state ═══ -->
-  <rect x="280" y="142" width="220" height="84" rx="10" fill="#2a78d6" fill-opacity="0.07" stroke="#2a78d6" stroke-opacity="0.5" stroke-width="1"/>
-  <text x="296" y="162" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; STATE</text>
-  <text x="296" y="183" font-size="14" font-weight="600" fill="#0b0b0b">Session state</text>
-  <text x="296" y="200" font-size="11.5" fill="#52514e">skill loads &#183; transcript cursor</text>
-  <text x="296" y="216" font-size="10" fill="#898781">session &#183; minutes &#183; turns &#183; tokens</text>
+  <rect x="360" y="142" width="220" height="84" rx="10" fill="#2a78d6" fill-opacity="0.07" stroke="#2a78d6" stroke-opacity="0.5" stroke-width="1"/>
+  <text x="376" y="162" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; STATE</text>
+  <text x="376" y="183" font-size="14" font-weight="600" fill="#0b0b0b">Session state</text>
+  <text x="376" y="200" font-size="11.5" fill="#52514e">skill loads &#183; transcript cursor</text>
+  <text x="376" y="216" font-size="10" fill="#898781">session &#183; minutes &#183; turns &#183; tokens</text>
+
+  <!-- ═══ rules config ═══ -->
+  <rect x="690" y="170" width="220" height="84" rx="10" fill="#2a78d6" fill-opacity="0.07" stroke="#2a78d6" stroke-opacity="0.5" stroke-width="1"/>
+  <text x="706" y="190" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; CONFIG</text>
+  <text x="706" y="211" font-family="ui-monospace, Consolas, Menlo, monospace" font-size="13.5" font-weight="600" fill="#0b0b0b">.skillforcer.toml</text>
+  <text x="706" y="228" font-size="11.5" fill="#52514e">rules: path globs &#183; content regex</text>
+  <text x="706" y="244" font-size="10" fill="#898781">&#8594; required skill + freshness window</text>
 
   <!-- ═══ load recorder ═══ -->
-  <rect x="280" y="258" width="220" height="72" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
-  <text x="296" y="279" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; HOOK (PostToolUse)</text>
-  <text x="296" y="300" font-size="14" font-weight="600" fill="#0b0b0b">Load recorder</text>
-  <text x="296" y="318" font-size="11.5" fill="#52514e">sees every Skill tool call</text>
+  <rect x="360" y="258" width="220" height="72" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
+  <text x="376" y="279" font-size="9" letter-spacing="0.5" fill="#898781">SKILLFORCER &#183; HOOK (PostToolUse)</text>
+  <text x="376" y="300" font-size="14" font-weight="600" fill="#0b0b0b">Load recorder</text>
+  <text x="376" y="318" font-size="11.5" fill="#52514e">sees every Skill tool call</text>
 
-  <!-- ═══ ③ denied ═══ -->
-  <rect x="360" y="358" width="250" height="76" rx="10" fill="#d03b3b" fill-opacity="0.07" stroke="#d03b3b" stroke-opacity="0.5" stroke-width="1"/>
-  <circle cx="584" cy="384" r="12" fill="#2a78d6"/>
-  <text x="584" y="388.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text>
-  <text x="376" y="380" font-size="9" letter-spacing="0.5" fill="#898781">OUTCOME</text>
-  <text x="376" y="401" font-size="15" font-weight="600" fill="#0b0b0b"><tspan fill="#d03b3b">&#10005;</tspan> Denied, with reason</text>
-  <text x="376" y="420" font-size="12" font-style="italic" fill="#52514e">&#8220;load tech-writing first&#8230;&#8221;</text>
+  <!-- ═══ ④ denied ═══ -->
+  <rect x="440" y="358" width="250" height="76" rx="10" fill="#d03b3b" fill-opacity="0.07" stroke="#d03b3b" stroke-opacity="0.5" stroke-width="1"/>
+  <circle cx="664" cy="384" r="12" fill="#2a78d6"/>
+  <text x="664" y="388.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text>
+  <text x="456" y="380" font-size="9" letter-spacing="0.5" fill="#898781">OUTCOME</text>
+  <text x="456" y="401" font-size="15" font-weight="600" fill="#0b0b0b"><tspan fill="#d03b3b">&#10005;</tspan> Denied, with reason</text>
+  <text x="456" y="420" font-size="12" font-style="italic" fill="#52514e">&#8220;load tech-writing first&#8230;&#8221;</text>
 
-  <!-- ═══ ④ Skill tool ═══ -->
+  <!-- ═══ ⑤ Skill tool ═══ -->
   <rect x="40" y="358" width="220" height="76" rx="10" fill="#f9f9f7" stroke="rgba(11,11,11,0.12)" stroke-width="1"/>
   <circle cx="234" cy="384" r="12" fill="#eb6834"/>
-  <text x="234" y="388.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text>
+  <text x="234" y="388.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">5</text>
   <text x="56" y="380" font-size="9" letter-spacing="0.5" fill="#898781">CLAUDE</text>
   <text x="56" y="401" font-size="15" font-weight="600" fill="#0b0b0b">Runs the Skill tool</text>
   <text x="56" y="420" font-size="12" fill="#52514e">reads reason, loads the skill</text>
