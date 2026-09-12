@@ -107,7 +107,8 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             Ok(0)
         }
         Sub::Status(s) => {
-            let store = crate::state::Store::discover()?;
+            let store = crate::state::Store::discover()
+                .unwrap_or_else(|_| crate::state::Store::with_base(std::env::temp_dir().join("skillforcer")));
             let session = s.session.clone().unwrap_or_default();
             print!("{}", crate::commands::run_status(&store, &session));
             Ok(0)

@@ -12,7 +12,7 @@ pub fn message_for(rule: &RuleDef, ev: &WriteEvent, reason: &str) -> String {
         SkillSet::Any(s) | SkillSet::All(s) => s.join(", "),
     };
     let template = rule.message.clone().unwrap_or_else(|| {
-        "skillforcer: rule '{rule}' requires skill(s) {skills} before writing {file}. {reason}. Load it with the Skill tool, then retry.".to_string()
+        "skillforcer: rule '{rule}' requires skill(s) {skills} before writing {file}. {reason}. Load it now: Skill(\"{skills}\")".to_string()
     });
     template
         .replace("{file}", &ev.path.display().to_string())
@@ -22,16 +22,24 @@ pub fn message_for(rule: &RuleDef, ev: &WriteEvent, reason: &str) -> String {
 }
 
 fn refresh_state(st: &mut SessionState, transcript_path: &Path) {
-    if let Ok(scan) = transcript::scan(transcript_path, st.cursor) {
-        st.loads.extend(scan.skill_loads);
-        st.cursor = scan.end;
+    match transcript::scan(transcript_path, st.cursor) {
+        Ok(scan) => {
+            st.loads.extend(scan.skill_loads);
+            st.cursor = scan.end;
+        }
+        Err(e) => {
+            eprintln!("skillforcer: transcript scan failed ({e}); continuing");
+        }
     }
 }
 
 pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Option<&Path>) -> Decision {
     let input = match claude::parse_hook_input(raw) {
         Ok(i) => i,
-        Err(_) => return Decision::Allow,
+        Err(e) => {
+            eprintln!("skillforcer: could not parse hook input ({e}); allowing");
+            return Decision::Allow;
+        }
     };
 
     match input {
@@ -59,7 +67,10 @@ pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Optio
             let proj = if p.cwd.as_os_str().is_empty() { project_dir.to_path_buf() } else { p.cwd.clone() };
             let cfg: Config = match config::load(&proj, global_path) {
                 Ok(c) => c,
-                Err(_) => return Decision::Allow,
+                Err(e) => {
+                    eprintln!("skillforcer: could not load config ({e}); allowing");
+                    return Decision::Allow;
+                }
             };
             let fail_open = cfg.defaults.fail_open;
             let combine = cfg.defaults.combine_freshness;
@@ -67,14 +78,20 @@ pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Optio
             let mut st = store.load(&p.session_id);
             refresh_state(&mut st, &p.transcript_path);
             let _ = store.save(&st);
+            store.prune(std::time::Duration::from_secs(60 * 60 * 24 * 7));
 
             let now = Now { time: jiff::Timestamp::now(), turn: st.cursor.turn, tokens: st.cursor.tokens };
 
             for rule in &cfg.rules {
                 let compiled = match rules::compile(rule) {
                     Ok(c) => c,
-                    Err(_) => {
-                        if fail_open { continue } else { return Decision::Deny { reason: format!("skillforcer: rule '{}' failed to compile", rule.name) } }
+                    Err(e) => {
+                        if fail_open {
+                            eprintln!("skillforcer: rule '{}' failed to compile: {e}; skipping", rule.name);
+                            continue
+                        } else {
+                            return Decision::Deny { reason: format!("skillforcer: rule '{}' failed to compile", rule.name) }
+                        }
                     }
                 };
                 if compiled.matches(&ev) {
@@ -101,10 +118,15 @@ pub fn run_check(project_dir: &Path, file: &Path, content: &str, global: Option<
     let ev = WriteEvent { path: file.to_path_buf(), content: content.to_string() };
     let mut hits = Vec::new();
     for rule in &cfg.rules {
-        if let Ok(compiled) = rules::compile(rule)
-            && compiled.matches(&ev)
-        {
-            hits.push(rule.name.clone());
+        match rules::compile(rule) {
+            Ok(compiled) => {
+                if compiled.matches(&ev) {
+                    hits.push(rule.name.clone());
+                }
+            }
+            Err(e) => {
+                eprintln!("skillforcer: rule '{}' failed to compile: {e}; skipping", rule.name);
+            }
         }
     }
     for h in &hits {
