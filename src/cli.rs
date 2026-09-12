@@ -91,7 +91,32 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             crate::commands::render_and_print(&decision);
             Ok(0)
         }
-        Sub::Install(_) | Sub::Uninstall(_) | Sub::Check(_) | Sub::Status(_) | Sub::ListPresets(_) => {
+        Sub::Check(c) => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
+            let file = std::path::PathBuf::from(&c.file);
+            let content = if c.stdin {
+                use std::io::Read;
+                let mut s = String::new();
+                std::io::stdin().read_to_string(&mut s).ok();
+                s
+            } else {
+                std::fs::read_to_string(&file).unwrap_or_default()
+            };
+            let global = directories::ProjectDirs::from("", "", "skillforcer").map(|d| d.config_dir().join("config.toml"));
+            crate::commands::run_check(&cwd, &file, &content, global.as_deref())?;
+            Ok(0)
+        }
+        Sub::Status(s) => {
+            let store = crate::state::Store::discover()?;
+            let session = s.session.clone().unwrap_or_default();
+            print!("{}", crate::commands::run_status(&store, &session));
+            Ok(0)
+        }
+        Sub::ListPresets(_) => {
+            print!("{}", crate::commands::run_list_presets());
+            Ok(0)
+        }
+        Sub::Install(_) | Sub::Uninstall(_) => {
             eprintln!("not implemented");
             Ok(0)
         }

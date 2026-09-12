@@ -96,6 +96,70 @@ pub fn render_and_print(d: &Decision) {
     }
 }
 
+pub fn run_check(project_dir: &Path, file: &Path, content: &str, global: Option<&Path>) -> anyhow::Result<Vec<String>> {
+    let cfg = config::load(project_dir, global)?;
+    let ev = WriteEvent { path: file.to_path_buf(), content: content.to_string() };
+    let mut hits = Vec::new();
+    for rule in &cfg.rules {
+        if let Ok(compiled) = rules::compile(rule)
+            && compiled.matches(&ev)
+        {
+            hits.push(rule.name.clone());
+        }
+    }
+    for h in &hits {
+        println!("match: {h}");
+    }
+    if hits.is_empty() {
+        println!("no rules match {}", file.display());
+    }
+    Ok(hits)
+}
+
+pub fn run_list_presets() -> String {
+    let mut out = String::new();
+    for p in crate::presets::builtin() {
+        out.push_str(&format!("{}  (paths: {})\n", p.name, p.path.join(", ")));
+    }
+    out
+}
+
+pub fn run_status(store: &Store, session_id: &str) -> String {
+    let st = store.load(session_id);
+    let mut out = format!(
+        "session {}: {} skill load(s); cursor turn={} tokens={} offset={}\n",
+        st.session_id, st.loads.len(), st.cursor.turn, st.cursor.tokens, st.cursor.offset
+    );
+    for l in &st.loads {
+        out.push_str(&format!("  - {} @ {} (turn {}, {} tokens)\n", l.skill, l.at, l.turn, l.tokens));
+    }
+    out
+}
+
+#[cfg(test)]
+mod cmd_tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn check_reports_matching_rule() {
+        let proj = tempfile::tempdir().unwrap();
+        let mut f = std::fs::File::create(proj.path().join(".skillforcer.toml")).unwrap();
+        f.write_all(br#"[[rule]]
+            name = "comments"
+            path = ["**/*.rs"]
+            content = "//"
+            requires = { any_skill = ["tech-writing"], session = true }"#).unwrap();
+        let hits = run_check(proj.path(), std::path::Path::new("src/a.rs"), "// c", None).unwrap();
+        assert_eq!(hits, vec!["comments".to_string()]);
+    }
+
+    #[test]
+    fn list_presets_includes_code_comments() {
+        assert!(run_list_presets().contains("code-comments"));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
