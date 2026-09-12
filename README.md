@@ -3,11 +3,8 @@
 Forces a Claude Code skill to load before it lets a governed write through.
 `skillforcer` runs as a `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit`.
 When a write matches a rule and the required skill hasn't loaded recently enough, the
-hook denies the tool call with a message telling Claude which skill to load. A
+write is denied; Claude receives the reason, loads the skill, and retries. A
 `PostToolUse` hook on the `Skill` tool records each load so later writes can check it.
-
-Denials are advisory to Claude, not a hard block: Claude sees the reason and can load
-the skill and retry.
 
 ## Install
 
@@ -24,8 +21,9 @@ added; it never touches hooks belonging to other tools.
 ## Configuration
 
 Rules live in `.skillforcer.toml` in the project root, optionally layered over a global
-config at the OS config dir (`skillforcer/config.toml`). A project rule with the same
-`name` as a global one replaces it.
+config in the platform config directory — `~/.config/skillforcer/config.toml` on
+Linux/macOS, `%APPDATA%\skillforcer\config\config.toml` on Windows. A project rule with
+the same `name` as a global one replaces it.
 
 ```toml
 [defaults]
@@ -81,7 +79,7 @@ Reference one from `extends` instead of copying its `path`/`content` into every 
 ## Fail-open
 
 skillforcer never blocks a write because of its own error: malformed hook JSON, a
-missing or unreadable config, an unreadable transcript line, or (with
-`fail_open = true`, the default) a rule that fails to compile all resolve to `Allow`.
-The binary itself also exits `0` on any top-level error. Set `fail_open = false` to make
-a bad rule deny instead of being skipped.
+missing or unreadable config, and an unreadable transcript line all resolve to `Allow`.
+With `fail_open = true` (the default), a rule that fails to compile is skipped (other
+rules still apply); set `fail_open = false` to make a bad rule deny instead. The binary
+itself also exits `0` on any top-level error.
