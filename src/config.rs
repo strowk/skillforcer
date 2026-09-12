@@ -209,4 +209,25 @@ mod tests {
         let cfg = parse_str(project, Some(global)).unwrap();
         assert!(!cfg.defaults.fail_open);
     }
+
+    #[test]
+    fn rejects_when_neither_skill_key_set() {
+        let bad = r#"[[rule]]
+            name = "x"
+            requires = { session = true }"#;
+        assert!(parse_str(bad, None).is_err());
+    }
+
+    #[test]
+    fn project_rule_replaces_same_named_global_rule() {
+        let global = r#"[[rule]]
+            name = "dup"
+            requires = { all_skills = ["g"], session = true }"#;
+        let project = r#"[[rule]]
+            name = "dup"
+            requires = { any_skill = ["p"], session = true }"#;
+        let cfg = parse_str(project, Some(global)).unwrap();
+        assert_eq!(cfg.rules.len(), 1);
+        assert!(matches!(cfg.rules[0].requires.skills, SkillSet::Any(_)));
+    }
 }
