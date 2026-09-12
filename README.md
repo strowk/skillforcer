@@ -1,4 +1,4 @@
-# skillforcer
+# skillforcer - force coding agent to load a skill
 
 <p align="center">
   <img src="assets/logo.png" alt="skillforcer logo: a chibi robot holding a glowing energy sword" width="180">
