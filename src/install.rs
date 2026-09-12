@@ -41,9 +41,16 @@ fn event_entry(matcher: &str, exe: &str) -> Value {
 }
 
 fn ensure_event(root: &mut Value, event: &str, matcher: &str, exe: &str) {
-    let hooks = root.as_object_mut().unwrap().entry("hooks").or_insert_with(|| json!({}));
-    let arr = hooks.as_object_mut().unwrap().entry(event).or_insert_with(|| json!([]));
-    let arr = arr.as_array_mut().unwrap();
+    let map = root.as_object_mut().unwrap();
+    let hooks = map.entry("hooks").or_insert_with(|| json!({}));
+    if !hooks.is_object() {
+        *hooks = json!({});
+    }
+    let arr = hooks.as_object_mut().expect("just ensured object").entry(event).or_insert_with(|| json!([]));
+    if !arr.is_array() {
+        *arr = json!([]);
+    }
+    let arr = arr.as_array_mut().expect("just ensured array");
     // idempotent: skip if one of ours with this matcher already exists
     let exists = arr.iter().any(|e| is_ours(e) && e.get("matcher").and_then(|m| m.as_str()) == Some(matcher));
     if !exists {
@@ -144,6 +151,14 @@ mod tests {
         // matcher + command present
         assert_eq!(pre[0]["matcher"], "Write|Edit|MultiEdit|NotebookEdit");
         assert!(pre[0]["hooks"][0]["command"].as_str().unwrap().contains("skillforcer"));
+    }
+
+    #[test]
+    fn add_hooks_coerces_malformed_hooks() {
+        let mut root = json!({"hooks": "garbage"});
+        add_hooks(&mut root, "/x/skillforcer");
+        let pre = root["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(pre.len(), 1);
     }
 
     #[test]
