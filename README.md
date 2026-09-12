@@ -20,15 +20,14 @@ chance.
 ## In action
 
 When a rule requires the `tech-writing` skill within 15 minutes before any comment edit in
-`src/**/*.rs` and Claude tries to edit a comment without it loaded:
+`src/**/*.rs` and the agent tries to edit a comment without it loaded:
 
 <img alt="Claude Code session: a Write to src/auth.rs is denied by skillforcer with a reason, Claude loads tech-writing:technical-writing via the Skill tool, and the retried Write is allowed" src="docs/in-action.svg" width="760">
 
-Claude reads the denial reason, loads the skill, and retries on its own - no human in the
-loop. The second write passes because the load is now fresh.
-
-The same loop works in Codex: the write is denied with the reason, the model reads the
-skill, and the retry passes.
+The agent reads the denial reason, loads the skill, and retries on its own - no human in
+the loop. The second write passes because the load is now fresh. The screenshot above is
+a Claude Code session; the same loop runs in Codex CLI, where the denied write is an
+`apply_patch` and the model reads the skill's `SKILL.md` before retrying.
 
 ## How it works
 
@@ -42,7 +41,7 @@ rollout.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow-dark.svg">
-  <img alt="skillforcer decision loop: the PreToolUse guard matches each write against .skillforcer.toml rules (path globs, content regex) and checks the required skill's freshness against session state (writes no rule matches pass through unchecked); a fresh skill lets the write through, a stale one is denied with a reason, Claude loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
+  <img alt="skillforcer decision loop: the PreToolUse guard matches each write against .skillforcer.toml rules (path globs, content regex) and checks the required skill's freshness against session state (writes no rule matches pass through unchecked); a fresh skill lets the write through, a stale one is denied with a reason, the agent loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
 </picture>
 
 ## Install
