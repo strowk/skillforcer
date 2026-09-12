@@ -18,10 +18,14 @@ pub enum Sub {
     ListPresets(ListPresetsCmd),
 }
 
-/// Run as a Claude Code hook (reads hook JSON on stdin).
+/// Run as an agent hook (reads hook JSON on stdin).
 #[derive(FromArgs, Debug)]
 #[argh(subcommand, name = "hook")]
-pub struct HookCmd {}
+pub struct HookCmd {
+    /// agent harness the hook serves: claude (default) or codex
+    #[argh(option, default = "String::from(\"claude\")")]
+    pub harness: String,
+}
 
 /// Install skillforcer hooks into Claude settings.
 #[derive(FromArgs, Debug)]
@@ -78,7 +82,7 @@ pub struct ListPresetsCmd {}
 
 pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
     match cli.sub {
-        Sub::Hook(_) => {
+        Sub::Hook(h) => {
             use std::io::Read;
             let mut raw = String::new();
             std::io::stdin().read_to_string(&mut raw).ok();
@@ -88,7 +92,9 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             let global = directories::ProjectDirs::from("", "", "skillforcer")
                 .map(|d| d.config_dir().join("config.toml"));
-            let decision = crate::commands::run_hook(&raw, &store, &cwd, global.as_deref());
+            let harness = crate::model::Harness::from_flag(&h.harness);
+            let decision =
+                crate::commands::run_hook(&raw, &store, &cwd, global.as_deref(), harness);
             crate::commands::render_and_print(&decision);
             Ok(0)
         }
