@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","session_id":"cdx-1","transcript_path":"/tmp/rollout.jsonl","cwd":"/proj","tool_name":"Bash","tool_input":{"command":["bash","-lc","apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: docs/x.md\n+# Heading\n*** End Patch\nEOF"]}}

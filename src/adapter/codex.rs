@@ -3,6 +3,7 @@
 //! shared with the Claude adapter — Codex uses the same field names and the
 //! same `hookSpecificOutput` deny JSON.
 
+use crate::adapter::claude;
 use crate::model::WriteEvent;
 use std::path::PathBuf;
 
@@ -48,6 +49,56 @@ pub fn parse_apply_patch(text: &str) -> Vec<WriteEvent> {
     }
     flush(&mut path, &mut added, &mut events);
     events
+}
+
+pub fn command_text(input: &serde_json::Value) -> String {
+    match input.get("command") {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Array(a)) => a
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect::<Vec<_>>()
+            .join(" "),
+        _ => input.as_str().map(str::to_string).unwrap_or_default(),
+    }
+}
+
+fn all_strings(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Array(a) => a.iter().map(all_strings).collect::<Vec<_>>().join("\n"),
+        serde_json::Value::Object(o) => o.values().map(all_strings).collect::<Vec<_>>().join("\n"),
+        _ => String::new(),
+    }
+}
+
+pub fn write_events_from_tool(tool_name: &str, input: &serde_json::Value) -> Vec<WriteEvent> {
+    if let Some(ev) = claude::write_event_from_tool(tool_name, input) {
+        return vec![ev];
+    }
+    let text = match tool_name {
+        "apply_patch" => all_strings(input),
+        "Bash" | "shell" | "local_shell" | "exec_command" => command_text(input),
+        _ => return Vec::new(),
+    };
+    parse_apply_patch(&text)
+}
+
+pub fn skill_reads_in_text(text: &str) -> Vec<String> {
+    let re = regex::Regex::new(r"[A-Za-z0-9_@.~:\-/\\]+[/\\]SKILL\.md").expect("static regex");
+    let mut out: Vec<String> = Vec::new();
+    for m in re.find_iter(text) {
+        let normalized = m.as_str().replace('\\', "/");
+        let mut parts = normalized.rsplit('/');
+        parts.next(); // SKILL.md
+        if let Some(name) = parts.next()
+            && !name.is_empty()
+            && !out.iter().any(|n| n == name)
+        {
+            out.push(name.to_string());
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -107,5 +158,70 @@ mod patch_tests {
         let evs = parse_apply_patch(p);
         assert_eq!(evs.len(), 1);
         assert_eq!(evs[0].path.to_str().unwrap(), "c.ts");
+    }
+}
+
+#[cfg(test)]
+mod extract_tests {
+    use super::{skill_reads_in_text, write_events_from_tool};
+    use crate::adapter::claude::{HookInput, parse_hook_input};
+
+    #[test]
+    fn apply_patch_tool_input_extracts_events() {
+        let raw = include_str!("../../tests/fixtures/codex_pre_apply_patch.json");
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
+        assert_eq!(p.tool_name, "apply_patch");
+        let evs = write_events_from_tool(&p.tool_name, &p.tool_input);
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].path.to_str().unwrap(), "src/auth.rs");
+        assert_eq!(evs[0].content, "// refresh token");
+    }
+
+    #[test]
+    fn shell_embedded_apply_patch_extracts_events() {
+        let raw = include_str!("../../tests/fixtures/codex_pre_shell_patch.json");
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
+        let evs = write_events_from_tool(&p.tool_name, &p.tool_input);
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].path.to_str().unwrap(), "docs/x.md");
+        assert_eq!(evs[0].content, "# Heading");
+    }
+
+    #[test]
+    fn plain_shell_command_yields_no_events() {
+        let input = serde_json::json!({"command": "cargo test"});
+        assert!(write_events_from_tool("Bash", &input).is_empty());
+    }
+
+    #[test]
+    fn claude_style_write_tool_still_extracts() {
+        let input = serde_json::json!({"file_path": "a.rs", "content": "// hi"});
+        let evs = write_events_from_tool("Write", &input);
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].content, "// hi");
+    }
+
+    #[test]
+    fn skill_reads_found_and_deduped() {
+        let cmd = "cat /home/u/.agents/skills/technical-writing/SKILL.md && cat .agents/skills/technical-writing/SKILL.md";
+        assert_eq!(
+            skill_reads_in_text(cmd),
+            vec!["technical-writing".to_string()]
+        );
+    }
+
+    #[test]
+    fn windows_style_skill_path_detected() {
+        let cmd = r"type C:\Users\u\.agents\skills\tech-writing\SKILL.md";
+        assert_eq!(skill_reads_in_text(cmd), vec!["tech-writing".to_string()]);
+    }
+
+    #[test]
+    fn no_skill_reads_in_ordinary_command() {
+        assert!(skill_reads_in_text("cargo build --release").is_empty());
     }
 }
