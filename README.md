@@ -86,6 +86,29 @@ skillforcer install
 a starter `.skillforcer.toml` if one doesn't exist. `uninstall` removes the hooks it
 added; it never touches hooks belonging to other tools.
 
+### Configuration skill (optional)
+
+This repo also ships `skillforcer-config`, a Claude Code skill that walks you and Claude
+through writing `.skillforcer.toml`. Install it as a plugin from this repo:
+
+```text
+/plugin marketplace add strowk/skillforcer
+/plugin install skillforcer@skillforcer
+```
+
+`/plugin marketplace add` clones over your existing GitHub credentials, so it works while
+the repo is private. Run `/reload-plugins` if prompted; the skill is then available to
+Claude automatically and as `/skillforcer:skillforcer-config`.
+
+To use the skill without the plugin system, copy it into a skills directory instead:
+
+```sh
+cp -r skills/skillforcer-config ~/.claude/skills/   # personal, all projects
+# or .claude/skills/skillforcer-config inside one project
+```
+
+Invoked that way it is `/skillforcer-config`.
+
 ## Configuration
 
 Rules live in `.skillforcer.toml` in the project root, optionally layered over a global

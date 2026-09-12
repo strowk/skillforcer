@@ -14,8 +14,14 @@ next write can check it.
 
 ## Install
 
+Install the binary, then register the hooks in the project. The install scripts fetch a
+prebuilt release binary:
+
+- macOS, Linux, or Windows Git Bash: `curl -fsSL https://raw.githubusercontent.com/strowk/skillforcer/main/install.sh | sh`
+- Windows PowerShell: `irm https://raw.githubusercontent.com/strowk/skillforcer/main/install.ps1 | iex`
+- From a source checkout: `cargo install --path .`
+
 ```
-cargo install --path .
 skillforcer install
 ```
 
