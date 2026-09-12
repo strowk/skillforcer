@@ -156,6 +156,25 @@ pub fn load(project_dir: &Path, global_path: Option<&Path>) -> Result<Config> {
     parse_str(&project_toml, global_toml.as_deref())
 }
 
+pub fn resolve_extends(rule: &RuleDef) -> Result<RuleDef> {
+    let mut out = rule.clone();
+    let mut preset_paths: Vec<String> = Vec::new();
+    for name in &rule.extends {
+        let p = crate::presets::get(name)
+            .ok_or_else(|| anyhow::anyhow!("rule '{}': unknown preset '{}'", rule.name, name))?;
+        if out.content.is_none() {
+            out.content = p.content.map(str::to_string);
+        }
+        preset_paths.extend(p.path.iter().map(|s| s.to_string()));
+    }
+    // preset paths first, then the rule's own (both apply as a set)
+    let mut merged = preset_paths;
+    merged.extend(rule.path.iter().cloned());
+    out.path = merged;
+    out.extends = Vec::new();
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,5 +248,33 @@ mod tests {
         let cfg = parse_str(project, Some(global)).unwrap();
         assert_eq!(cfg.rules.len(), 1);
         assert!(matches!(cfg.rules[0].requires.skills, SkillSet::Any(_)));
+    }
+}
+
+#[cfg(test)]
+mod extends_tests {
+    use super::*;
+    #[test]
+    fn extends_fills_content_from_preset() {
+        let rule = RuleDef {
+            name: "c".into(),
+            extends: vec!["code-comments".into()],
+            path: vec!["src/**/*.rs".into()],
+            content: None,
+            requires: Requires { skills: SkillSet::Any(vec!["s".into()]), windows: Windows { session: true, ..Default::default() } },
+            message: None,
+        };
+        let resolved = resolve_extends(&rule).unwrap();
+        assert!(resolved.content.is_some());
+        assert!(resolved.path.iter().any(|p| p == "src/**/*.rs"));
+    }
+    #[test]
+    fn unknown_preset_errors() {
+        let rule = RuleDef {
+            name: "c".into(), extends: vec!["nope".into()], path: vec![], content: Some("x".into()),
+            requires: Requires { skills: SkillSet::All(vec!["s".into()]), windows: Windows { session: true, ..Default::default() } },
+            message: None,
+        };
+        assert!(resolve_extends(&rule).is_err());
     }
 }
