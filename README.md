@@ -1,10 +1,53 @@
 # skillforcer
 
-Forces a Claude Code skill to load before it lets a governed write through.
-`skillforcer` runs as a `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit`.
-When a write matches a rule and the required skill hasn't loaded recently enough, the
-write is denied; Claude receives the reason, loads the skill, and retries. A
-`PostToolUse` hook on the `Skill` tool records each load so later writes can check it.
+**Require a Claude Code skill to be loaded before the writes that depend on it.**
+
+[![CI](https://github.com/strowk/skillforcer/actions/workflows/ci.yml/badge.svg)](https://github.com/strowk/skillforcer/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/strowk/skillforcer?sort=semver)](https://github.com/strowk/skillforcer/releases)
+
+A skill's guidance only applies while its body is in the model's context. Over a long
+session that body drifts out - context rot - and writes the skill governs (comment style,
+doc conventions, anything a rule can match) quietly stop following it. A skill may also
+never get loaded before the first write that needs it.
+
+skillforcer closes both gaps. It runs as a Claude Code hook and denies a matching write
+until the required skill has loaded recently enough, so the rule is enforced at the
+moment it matters instead of left to chance.
+
+## In action
+
+A rule requires the `tech-writing` skill within 15 minutes before any comment edit in
+`src/`. Claude goes to edit a comment without it loaded:
+
+```text
+> Write  src/auth.rs
+  DENIED by skillforcer:
+  "Editing comments in src/auth.rs. Load tech-writing:technical-writing
+   first - context may have rotted."
+
+> Skill  tech-writing:technical-writing     (skillforcer records the load)
+> Write  src/auth.rs                         ALLOWED
+```
+
+Claude reads the denial reason, loads the skill, and retries on its own - no human in the
+loop. The second write passes because the load is now fresh.
+
+## How it works
+
+Two hooks, installed by the CLI. A `PreToolUse` guard on `Write`/`Edit`/`MultiEdit`/
+`NotebookEdit` decides each write; a `PostToolUse` recorder on the `Skill` tool logs every
+load to per-session state so the guard can check freshness. The session transcript is the
+source of truth, so detection holds even across the recorder.
+
+```mermaid
+flowchart LR
+    A["Write / Edit a governed file"] --> Q{"required skill loaded<br/>recently enough?"}
+    Q -- yes --> OK["allow the write"]
+    Q -- no --> D["deny + reason"]
+    D --> L["Claude runs the Skill tool"]
+    L --> A
+    L -. "PostToolUse records the load" .-> S[("session state")]
+```
 
 ## Install
 
@@ -24,8 +67,7 @@ irm https://raw.githubusercontent.com/strowk/skillforcer/main/install.ps1 | iex
 
 The scripts install to `~/.local/bin` (POSIX) or `%LOCALAPPDATA%\skillforcer\bin`
 (PowerShell). Override with `SKILLFORCER_INSTALL_DIR`, or pin a release with
-`SKILLFORCER_VERSION=vX.Y.Z`. Supported targets: Linux (x86_64 gnu/musl, aarch64),
-macOS (x86_64, arm64), Windows (x86_64).
+`SKILLFORCER_VERSION=vX.Y.Z`.
 
 ### From source
 
@@ -47,7 +89,7 @@ added; it never touches hooks belonging to other tools.
 ## Configuration
 
 Rules live in `.skillforcer.toml` in the project root, optionally layered over a global
-config in the platform config directory — `~/.config/skillforcer/config.toml` on
+config in the platform config directory - `~/.config/skillforcer/config.toml` on
 Linux/macOS, `%APPDATA%\skillforcer\config\config.toml` on Windows. A project rule with
 the same `name` as a global one replaces it.
 
@@ -61,7 +103,7 @@ name = "comments-need-tech-writing"
 extends = ["code-comments"]
 path = ["src/**/*.rs", "**/*.ts"]
 requires = { any_skill = ["tech-writing:technical-writing"], minutes = 15 }
-message = "Editing comments in {file}. Load {skills} first — context may have rotted."
+message = "Editing comments in {file}. Load {skills} first - context may have rotted."
 ```
 
 Each rule matches a write by `path` (glob patterns) and, optionally, `content` (a regex
@@ -90,16 +132,16 @@ With `combine_freshness = "all"` (the default), every window on the rule must pa
 
 `skillforcer list-presets` prints the bundled presets and the glob paths each covers:
 
-- `code-comments` — comment syntax across common languages (`//`, `/* */`, `<!--`, `#`, `;;`)
-- `markdown-headings` — Markdown ATX headings (`#` through `######`)
+- `code-comments` - comment syntax across common languages (`//`, `/* */`, `<!--`, `#`, `;;`)
+- `markdown-headings` - Markdown ATX headings (`#` through `######`)
 
 Reference one from `extends` instead of copying its `path`/`content` into every rule.
 
 ## Debugging
 
-- `skillforcer check <file> [--stdin]` — reports which rules match a file (and its
+- `skillforcer check <file> [--stdin]` - reports which rules match a file (and its
   content, from the file or stdin), without needing a session or transcript.
-- `skillforcer status [--session ID]` — prints the recorded skill loads and transcript
+- `skillforcer status [--session ID]` - prints the recorded skill loads and transcript
   cursor (offset/turn/tokens) for a session, from the on-disk state store.
 
 ## Fail-open
