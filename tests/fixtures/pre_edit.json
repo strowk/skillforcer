@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/proj","tool_name":"Edit","tool_input":{"file_path":"src/lib.rs","old_string":"a","new_string":"// new comment","replace_all":false}}
