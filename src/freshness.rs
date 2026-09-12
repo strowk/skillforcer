@@ -38,11 +38,15 @@ fn skill_fresh(skill: &str, loads: &[SkillLoad], now: &Now, w: &Windows, combine
         Combine::All => checks.iter().all(|(ok, _)| *ok),
         Combine::Any => checks.iter().any(|(ok, _)| *ok),
     };
-    let reason = checks
-        .iter()
-        .find(|(ok, _)| !*ok)
-        .map(|(_, r)| r.clone())
-        .unwrap_or_else(|| format!("skill '{skill}' fresh"));
+    let reason = if passed {
+        format!("skill '{skill}' fresh")
+    } else {
+        checks
+            .iter()
+            .find(|(ok, _)| !*ok)
+            .map(|(_, r)| r.clone())
+            .unwrap_or_else(|| format!("skill '{skill}': no freshness window satisfied"))
+    };
     (passed, reason)
 }
 
@@ -121,5 +125,18 @@ mod tests {
         // within minutes(60) but 40 turns later -> AND fails
         let r = evaluate(&req, &loads, &now("2026-09-12T10:30:00Z", 41, 200), Combine::All);
         assert!(!r.satisfied);
+    }
+
+    #[test]
+    fn any_combinator_reason_matches_satisfied() {
+        let req = Requires {
+            skills: SkillSet::Any(vec!["x".into()]),
+            windows: Windows { minutes: Some(15), turns: Some(10), ..Default::default() },
+        };
+        let loads = vec![load("x", "2026-09-12T10:00:00Z", 1, 100)];
+        // 10 minutes later (within minutes window) but 40 turns later (beyond turns window)
+        let r = evaluate(&req, &loads, &now("2026-09-12T10:10:00Z", 41, 200), Combine::Any);
+        assert!(r.satisfied);
+        assert!(r.reason.contains("fresh"));
     }
 }
