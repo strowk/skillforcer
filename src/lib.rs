@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod cli;
+pub mod commands;
 pub mod config;
 pub mod freshness;
 pub mod model;

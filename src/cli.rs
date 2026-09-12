@@ -78,12 +78,20 @@ pub struct ListPresetsCmd {}
 
 pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
     match cli.sub {
-        Sub::Hook(_)
-        | Sub::Install(_)
-        | Sub::Uninstall(_)
-        | Sub::Check(_)
-        | Sub::Status(_)
-        | Sub::ListPresets(_) => {
+        Sub::Hook(_) => {
+            use std::io::Read;
+            let mut raw = String::new();
+            std::io::stdin().read_to_string(&mut raw).ok();
+            let store = crate::state::Store::discover()
+                .unwrap_or_else(|_| crate::state::Store::with_base(std::env::temp_dir().join("skillforcer")));
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let global = directories::ProjectDirs::from("", "", "skillforcer")
+                .map(|d| d.config_dir().join("config.toml"));
+            let decision = crate::commands::run_hook(&raw, &store, &cwd, global.as_deref());
+            crate::commands::render_and_print(&decision);
+            Ok(0)
+        }
+        Sub::Install(_) | Sub::Uninstall(_) | Sub::Check(_) | Sub::Status(_) | Sub::ListPresets(_) => {
             eprintln!("not implemented");
             Ok(0)
         }
