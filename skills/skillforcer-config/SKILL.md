@@ -19,7 +19,7 @@ prebuilt release binary:
 
 - macOS, Linux, or Windows Git Bash: `curl -fsSL https://raw.githubusercontent.com/strowk/skillforcer/main/install.sh | sh`
 - Windows PowerShell: `irm https://raw.githubusercontent.com/strowk/skillforcer/main/install.ps1 | iex`
-- From a source checkout: `cargo install --path .`
+- From source: `cargo install --git https://github.com/strowk/skillforcer` (or `cargo install --path .` from a local checkout)
 
 ```
 skillforcer install

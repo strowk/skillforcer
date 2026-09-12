@@ -72,10 +72,13 @@ The scripts install to `~/.local/bin` (POSIX) or `%LOCALAPPDATA%\skillforcer\bin
 ### From source
 
 ```sh
-cargo install --path .   # from a checkout
+cargo install --git https://github.com/strowk/skillforcer
+# or, from a local checkout: cargo install --path .
 ```
 
 ### Register the hooks
+
+From your project's root directory:
 
 ```sh
 skillforcer install
