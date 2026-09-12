@@ -83,10 +83,12 @@ tag=$(printf '%s' "$release_json" | grep -o '"tag_name":[ ]*"[^"]*"' | head -n1 
 [ -n "$tag" ] || err "no releases found for $REPO"
 
 # Extract the asset's API URL (works for private repos; browser URLs need a web session).
-asset_url=$(printf '%s' "$release_json" | tr '{' '\n' \
-  | grep "\"name\":[ ]*\"$asset\"" \
-  | grep -o '"url":[ ]*"[^"]*"' | head -n1 \
-  | sed -e 's/.*"url":[ ]*"//' -e 's/"$//')
+# The response is pretty-printed, so track the most recent "url" line and emit it once
+# the matching asset "name" line is reached (url precedes name within each asset object).
+asset_url=$(printf '%s' "$release_json" | awk -v tgt="\"$asset\"" '
+  /"url":/ { u = $0 }
+  index($0, "\"name\":") && index($0, tgt) { print u; exit }
+' | sed -e 's/.*"url":[ ]*"//' -e 's/".*//')
 [ -n "$asset_url" ] || err "release $tag has no asset named $asset"
 
 echo "Installing skillforcer $tag ($target) to $INSTALL_DIR"
