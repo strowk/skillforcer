@@ -25,9 +25,7 @@ When a rule requires the `tech-writing` skill within 15 minutes before any comme
 <img alt="Claude Code session: a Write to src/auth.rs is denied by skillforcer with a reason, Claude loads tech-writing:technical-writing via the Skill tool, and the retried Write is allowed" src="docs/in-action.svg" width="760">
 
 The agent reads the denial reason, loads the skill, and retries on its own - no human in
-the loop. The second write passes because the load is now fresh. The screenshot above is
-a Claude Code session; the same loop runs in Codex CLI, where the denied write is an
-`apply_patch` and the model reads the skill's `SKILL.md` before retrying.
+the loop. The second write passes because the load is now fresh.
 
 ## How it works
 
