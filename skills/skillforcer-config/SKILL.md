@@ -1,16 +1,18 @@
 ---
 name: skillforcer-config
-description: Use when configuring skillforcer — writing or editing .skillforcer.toml rules, choosing freshness windows (session/minutes/turns/tokens), using presets, or installing/uninstalling its Claude Code hooks.
+description: Use when configuring skillforcer — writing or editing .skillforcer.toml rules, choosing freshness windows (session/minutes/turns/tokens), using presets, or installing/uninstalling its hooks (Claude Code and Codex CLI).
 ---
 
 ## Overview
 
 skillforcer forces a skill to have loaded recently enough before it lets a governed
-write through. It runs as a `PreToolUse` hook on `Write`/`Edit`/`MultiEdit`/`NotebookEdit`:
-when a write matches a rule and none of the required skills loaded within the rule's
-freshness window, skillforcer denies the write and returns a message telling Claude
-which skill to load. A `PostToolUse` hook on the `Skill` tool records each load so the
-next write can check it.
+write through. It runs as a `PreToolUse` hook in your coding agent — Claude Code and
+Codex CLI are both supported: when a write matches a rule and none of the required
+skills loaded within the rule's freshness window, skillforcer denies the write and
+returns a message telling the agent which skill to load. A `PostToolUse` hook records
+skill loads (Claude's `Skill` tool; in Codex, reads of a skill's `SKILL.md`) so the
+next write can check freshness. In Codex, explicit `$skill` invocations are detected
+from the session rollout.
 
 ## Install
 
@@ -34,6 +36,15 @@ skillforcer install
 targets `~/.claude/settings.json`. `--dry-run` prints the resulting settings without
 writing them. `skillforcer uninstall` (same target flags) removes only the hook entries
 it added.
+
+`install` detects the harness from the project (`.claude/` → Claude Code, `.codex/` or
+`.agents/skills/` → Codex; both → both; neither → Claude Code). Force one with
+`--claude` or `--codex`. For Codex, hooks go to `.codex/hooks.json` (project) or
+`~/.codex/hooks.json` (`--user`); `--local` is Claude-only.
+
+**Codex trust gate:** after installing, run `/hooks` inside Codex and approve the
+skillforcer hook. Until it is trusted it enforces nothing, and `codex exec` skips
+untrusted hooks silently.
 
 ## Rule anatomy
 
@@ -63,6 +74,10 @@ message = "Editing comments in {file}. Load {skills} first — context may have 
   window. A rule with neither or both of `any_skill`/`all_skills`, or with no freshness
   window, fails to load.
 - `message` — the denial text; omit to use the built-in default.
+
+Skill names in rules match by suffix across harnesses: `tech-writing:technical-writing`
+(Claude plugin:skill form) also matches a Codex load of the `technical-writing` skill
+directory, and vice versa.
 
 A project rule and a global rule (`~/.config/skillforcer/config.toml`, or the
 platform-equivalent config dir) with the same `name` do not merge — the project rule
