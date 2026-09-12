@@ -21,6 +21,8 @@ prebuilt release binary:
 - Windows PowerShell: `irm https://raw.githubusercontent.com/strowk/skillforcer/main/install.ps1 | iex`
 - From source: `cargo install --git https://github.com/strowk/skillforcer` (or `cargo install --path .` from a local checkout)
 
+Then, from the project's root directory:
+
 ```
 skillforcer install
 ```
