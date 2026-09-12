@@ -27,27 +27,6 @@ The scripts install to `~/.local/bin` (POSIX) or `%LOCALAPPDATA%\skillforcer\bin
 `SKILLFORCER_VERSION=vX.Y.Z`. Supported targets: Linux (x86_64 gnu/musl, aarch64),
 macOS (x86_64, arm64), Windows (x86_64).
 
-### While the repository is private
-
-Release assets and the scripts themselves need a token with `repo` scope. Set
-`GITHUB_TOKEN` — the scripts use it to fetch the asset — and fetch the script through
-the authenticated API:
-
-```sh
-export GITHUB_TOKEN=ghp_your_token
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
-  https://api.github.com/repos/strowk/skillforcer/contents/install.sh | sh
-```
-
-```powershell
-$env:GITHUB_TOKEN = 'ghp_your_token'
-$h = @{ Authorization = "Bearer $env:GITHUB_TOKEN"; Accept = 'application/vnd.github.raw' }
-irm -Headers $h https://api.github.com/repos/strowk/skillforcer/contents/install.ps1 | iex
-```
-
-Once the repository is public, the plain `curl … | sh` and `irm … | iex` one-liners work
-without a token.
-
 ### From source
 
 ```sh
