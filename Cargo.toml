@@ -19,7 +19,7 @@ toml = "0.8"
 regex = "1"
 globset = "0.4"
 directories = "5"
-jiff = "0.1"
+jiff = { version = "0.1", features = ["serde"] }
 anyhow = "1"
 
 [dev-dependencies]
