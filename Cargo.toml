@@ -3,4 +3,24 @@ name = "skillforcer"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "skillforcer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "skillforcer"
+path = "src/main.rs"
+
 [dependencies]
+argh = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.8"
+regex = "1"
+globset = "0.4"
+directories = "5"
+jiff = { version = "0.1", features = ["serde"] }
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"

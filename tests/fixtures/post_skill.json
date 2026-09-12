@@ -1,0 +1,1 @@
+{"hook_event_name":"PostToolUse","session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/proj","tool_name":"Skill","tool_input":{"skill":"tech-writing:technical-writing"}}
