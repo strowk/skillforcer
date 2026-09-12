@@ -1,14 +1,16 @@
 # skillforcer
 
-**Require a Claude Code skill to be loaded before the writes that depend on it.**
+**Force skill to be loaded before the writes that depend on it.**
 
 [![CI](https://github.com/strowk/skillforcer/actions/workflows/ci.yml/badge.svg)](https://github.com/strowk/skillforcer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/strowk/skillforcer?sort=semver)](https://github.com/strowk/skillforcer/releases)
 
-A skill's guidance only applies while its body is in the model's context. Over a long
-session that body drifts out - context rot - and writes the skill governs (comment style,
-doc conventions, anything a rule can match) quietly stop following it. A skill may also
-never get loaded before the first write that needs it.
+Coding agents tend to not load the skills they need before writing either due to context rot or 
+just because of usual LLM randomness.
+
+In addition to that skill's guidance only applies correctly while it is recent enough.
+Over a long session that body drifts out (context rot) and writes the skill governs 
+(comment style, doc conventions, anything a rule can match) quietly stop following it.
 
 skillforcer closes both gaps. It runs as a Claude Code hook and denies a matching write
 until the required skill has loaded recently enough, so the rule is enforced at the
