@@ -40,6 +40,12 @@ pub struct InstallCmd {
     /// print changes without writing
     #[argh(switch)]
     pub dry_run: bool,
+    /// force installing for Claude Code
+    #[argh(switch)]
+    pub claude: bool,
+    /// force installing for Codex CLI
+    #[argh(switch)]
+    pub codex: bool,
 }
 
 /// Remove skillforcer hooks from Claude settings.
@@ -52,6 +58,12 @@ pub struct UninstallCmd {
     /// target ~/.claude/settings.json
     #[argh(switch)]
     pub user: bool,
+    /// force uninstalling for Claude Code
+    #[argh(switch)]
+    pub claude: bool,
+    /// force uninstalling for Codex CLI
+    #[argh(switch)]
+    pub codex: bool,
 }
 
 /// Evaluate rules against a file and report which fire.
@@ -138,8 +150,28 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             } else {
                 crate::install::Target::Project
             };
-            let summary = crate::install::install(target, &exe, &cwd, c.dry_run)?;
-            println!("{summary}");
+            let harnesses: Vec<crate::model::Harness> = if c.claude || c.codex {
+                let mut v = Vec::new();
+                if c.claude {
+                    v.push(crate::model::Harness::Claude);
+                }
+                if c.codex {
+                    v.push(crate::model::Harness::Codex);
+                }
+                v
+            } else {
+                crate::install::detect_harnesses(&cwd)
+            };
+            if c.local && harnesses.contains(&crate::model::Harness::Codex) {
+                anyhow::bail!("--local is Claude-only; use --codex without --local");
+            }
+            for h in harnesses {
+                let summary = crate::install::install(target, &exe, &cwd, c.dry_run, h)?;
+                println!("{summary}");
+                if h == crate::model::Harness::Codex && !c.dry_run {
+                    println!("{}", crate::install::CODEX_TRUST_NOTE);
+                }
+            }
             if !c.dry_run {
                 let created = crate::install::scaffold_config(&cwd)?;
                 println!(
@@ -162,7 +194,24 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             } else {
                 crate::install::Target::Project
             };
-            crate::install::uninstall(target, &cwd)?;
+            let harnesses: Vec<crate::model::Harness> = if c.claude || c.codex {
+                let mut v = Vec::new();
+                if c.claude {
+                    v.push(crate::model::Harness::Claude);
+                }
+                if c.codex {
+                    v.push(crate::model::Harness::Codex);
+                }
+                v
+            } else {
+                crate::install::detect_harnesses(&cwd)
+            };
+            if c.local && harnesses.contains(&crate::model::Harness::Codex) {
+                anyhow::bail!("--local is Claude-only; use --codex without --local");
+            }
+            for h in harnesses {
+                crate::install::uninstall(target, &cwd, h)?;
+            }
             println!("uninstalled skillforcer hooks");
             Ok(0)
         }
