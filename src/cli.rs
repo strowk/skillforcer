@@ -129,6 +129,18 @@ fn resolve_harnesses(
     })
 }
 
+/// Bare binary name for the hook `command`. A settings.json is often committed
+/// or shared, so an absolute path (one user's install location) breaks on other
+/// machines; the bare name resolves via PATH, where the installer puts
+/// skillforcer. Falls back to `skillforcer` if the exe name is unavailable.
+fn hook_exe_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "skillforcer".into())
+}
+
 pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
     match cli.sub {
         Sub::Hook(h) => {
@@ -177,9 +189,7 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
         }
         Sub::Install(c) => {
             let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
-            let exe = std::env::current_exe()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| "skillforcer".into());
+            let exe = hook_exe_name();
             let target = if c.user {
                 crate::install::Target::User
             } else if c.local {
@@ -245,6 +255,14 @@ mod tests {
         let cli = Cli::from_args(&["skillforcer"], &["list-presets"]).unwrap();
         assert!(matches!(cli.sub, Sub::ListPresets(_)));
     }
+    #[test]
+    fn hook_exe_name_is_not_an_absolute_path() {
+        let name = hook_exe_name();
+        assert!(!name.is_empty());
+        assert!(!name.contains('/'), "hook command leaked a path: {name}");
+        assert!(!name.contains('\\'), "hook command leaked a path: {name}");
+    }
+
     #[test]
     fn parses_hook_subcommand() {
         let cli = Cli::from_args(&["skillforcer"], &["hook"]).unwrap();
