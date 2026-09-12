@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" role="img" aria-labelledby="t">
+  <title id="t">Claude Code session: a Write to src/auth.rs is denied by skillforcer with a reason; Claude runs the Skill tool to load tech-writing:technical-writing, skillforcer records the load, and the retried Write is allowed</title>
+
+  <!-- terminal window -->
+  <rect x="8" y="8" width="744" height="304" rx="12" fill="#1a1a19" stroke="rgba(140,140,140,0.4)" stroke-width="1"/>
+  <circle cx="32" cy="28" r="5.5" fill="#ff5f57"/>
+  <circle cx="52" cy="28" r="5.5" fill="#febc2e"/>
+  <circle cx="72" cy="28" r="5.5" fill="#28c840"/>
+  <text x="380" y="32" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#898781">Claude Code</text>
+  <line x1="9" y1="48" x2="751" y2="48" stroke="rgba(255,255,255,0.09)" stroke-width="1"/>
+
+  <g font-family="ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace" font-size="13.5">
+    <!-- write denied -->
+    <circle cx="39" cy="77.5" r="5" fill="#e66767"/>
+    <text x="54" y="82"><tspan fill="#ffffff" font-weight="600">Write</tspan><tspan fill="#c3c2b7">(src/auth.rs)</tspan></text>
+    <text x="54" y="104"><tspan fill="#898781">&#9492;  </tspan><tspan fill="#e66767" font-weight="600">Error: DENIED by skillforcer</tspan></text>
+    <text x="76" y="126" fill="#e66767">&#8220;Editing comments in src/auth.rs. Load tech-writing:technical-writing</text>
+    <text x="76" y="148" fill="#e66767">first - context may have rotted.&#8221;</text>
+
+    <!-- skill load -->
+    <circle cx="39" cy="185.5" r="5" fill="#0ca30c"/>
+    <text x="54" y="190"><tspan fill="#ffffff" font-weight="600">Skill</tspan><tspan fill="#c3c2b7">(tech-writing:technical-writing)</tspan></text>
+    <text x="54" y="212"><tspan fill="#898781">&#9492;  </tspan><tspan fill="#c3c2b7">Loaded</tspan><tspan fill="#898781"> - skillforcer records the load</tspan></text>
+
+    <!-- retry allowed -->
+    <circle cx="39" cy="249.5" r="5" fill="#0ca30c"/>
+    <text x="54" y="254"><tspan fill="#ffffff" font-weight="600">Write</tspan><tspan fill="#c3c2b7">(src/auth.rs)</tspan></text>
+    <text x="54" y="276"><tspan fill="#898781">&#9492;  </tspan><tspan fill="#c3c2b7">Wrote src/auth.rs  </tspan><tspan fill="#0ca30c" font-weight="600">&#10003; allowed</tspan><tspan fill="#898781"> - skill is fresh</tspan></text>
+  </g>
+</svg>

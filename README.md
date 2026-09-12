@@ -16,18 +16,10 @@ moment it matters instead of left to chance.
 
 ## In action
 
-A rule requires the `tech-writing` skill within 15 minutes before any comment edit in
-`src/`. Claude goes to edit a comment without it loaded:
+When a rule requires the `tech-writing` skill within 15 minutes before any comment edit in
+`src/**/*.rs` and Claude tries to edit a comment without it loaded:
 
-```text
-> Write  src/auth.rs
-  DENIED by skillforcer:
-  "Editing comments in src/auth.rs. Load tech-writing:technical-writing
-   first - context may have rotted."
-
-> Skill  tech-writing:technical-writing     (skillforcer records the load)
-> Write  src/auth.rs                         ALLOWED
-```
+<img alt="Claude Code session: a Write to src/auth.rs is denied by skillforcer with a reason, Claude loads tech-writing:technical-writing via the Skill tool, and the retried Write is allowed" src="docs/in-action.svg" width="760">
 
 Claude reads the denial reason, loads the skill, and retries on its own - no human in the
 loop. The second write passes because the load is now fresh.
@@ -39,15 +31,10 @@ Two hooks, installed by the CLI. A `PreToolUse` guard on `Write`/`Edit`/`MultiEd
 load to per-session state so the guard can check freshness. The session transcript is the
 source of truth, so detection holds even across the recorder.
 
-```mermaid
-flowchart LR
-    A["Write / Edit a governed file"] --> Q{"required skill loaded<br/>recently enough?"}
-    Q -- yes --> OK["allow the write"]
-    Q -- no --> D["deny + reason"]
-    D --> L["Claude runs the Skill tool"]
-    L --> A
-    L -. "PostToolUse records the load" .-> S[("session state")]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flow-dark.svg">
+  <img alt="skillforcer decision loop: the PreToolUse guard checks the required skill's freshness against session state; a fresh skill lets the write through, a stale one is denied with a reason, Claude loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
+</picture>
 
 ## Install
 
