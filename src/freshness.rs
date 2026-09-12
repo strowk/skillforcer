@@ -6,10 +6,23 @@ pub struct FreshnessResult {
     pub reason: String,
 }
 
+/// A rule's skill name matches a recorded load if they are equal or share the
+/// same final segment (after the last ':' or '/'), so one rule spans both
+/// Claude ("plugin:skill") and Codex (bare directory name) spellings.
+pub fn skill_matches(rule_skill: &str, load_skill: &str) -> bool {
+    if rule_skill == load_skill {
+        return true;
+    }
+    fn tail(s: &str) -> &str {
+        s.rsplit([':', '/']).next().unwrap_or(s)
+    }
+    tail(rule_skill) == tail(load_skill)
+}
+
 fn latest<'a>(loads: &'a [SkillLoad], skill: &str) -> Option<&'a SkillLoad> {
     loads
         .iter()
-        .filter(|l| l.skill == skill)
+        .filter(|l| skill_matches(skill, &l.skill))
         .max_by_key(|l| l.at)
 }
 
@@ -236,5 +249,41 @@ mod tests {
         );
         assert!(r.satisfied);
         assert!(r.reason.contains("fresh"));
+    }
+
+    #[test]
+    fn suffix_match_across_harnesses() {
+        assert!(skill_matches(
+            "tech-writing:technical-writing",
+            "technical-writing"
+        ));
+        assert!(skill_matches(
+            "technical-writing",
+            "tech-writing:technical-writing"
+        ));
+        assert!(skill_matches("a/b/technical-writing", "technical-writing"));
+        assert!(skill_matches("x:same", "y/same"));
+        assert!(!skill_matches("technical-writing", "other-skill"));
+        assert!(!skill_matches("a:b", "a:c"));
+    }
+
+    #[test]
+    fn evaluate_matches_codex_load_by_suffix() {
+        let req = Requires {
+            skills: SkillSet::Any(vec!["tech-writing:technical-writing".into()]),
+            windows: Windows {
+                session: true,
+                ..Default::default()
+            },
+        };
+        // Codex records the bare directory name
+        let loads = vec![load("technical-writing", "2026-09-12T10:00:00Z", 1, 100)];
+        let r = evaluate(
+            &req,
+            &loads,
+            &now("2026-09-12T10:05:00Z", 3, 150),
+            Combine::All,
+        );
+        assert!(r.satisfied);
     }
 }
