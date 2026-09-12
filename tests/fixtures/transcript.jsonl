@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2026-09-12T10:00:00Z","message":{"role":"user","content":"hi"}}
+{"type":"assistant","timestamp":"2026-09-12T10:00:05Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Skill","input":{"skill":"tech-writing"}}],"usage":{"output_tokens":50}}}
+{"type":"user","timestamp":"2026-09-12T10:01:00Z","message":{"role":"user","content":"ok"}}
+{"type":"assistant","timestamp":"2026-09-12T10:01:10Z","message":{"role":"assistant","content":[{"type":"text","text":"done"}],"usage":{"output_tokens":30}}}
