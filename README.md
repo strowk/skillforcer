@@ -1,6 +1,10 @@
 # skillforcer
 
-**Require a skill to be loaded before the writes that depend on it — in Claude Code and OpenAI Codex CLI.**
+<p align="center">
+  <img src="assets/logo.png" alt="skillforcer logo: a chibi robot holding a glowing energy sword" width="180">
+  <br/>
+  <b>Require a skill to be loaded before the writes that depend on it — in Claude Code and OpenAI Codex CLI.</b>
+</p>
 
 [![CI](https://github.com/strowk/skillforcer/actions/workflows/ci.yml/badge.svg)](https://github.com/strowk/skillforcer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/strowk/skillforcer?sort=semver)](https://github.com/strowk/skillforcer/releases)
