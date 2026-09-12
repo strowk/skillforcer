@@ -1,6 +1,6 @@
 # skillforcer
 
-**Force skill to be loaded before the writes that depend on it.**
+**Require a skill to be loaded before the writes that depend on it — in Claude Code and OpenAI Codex CLI.**
 
 [![CI](https://github.com/strowk/skillforcer/actions/workflows/ci.yml/badge.svg)](https://github.com/strowk/skillforcer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/strowk/skillforcer?sort=semver)](https://github.com/strowk/skillforcer/releases)
@@ -12,9 +12,10 @@ In addition to that skill's guidance only applies correctly while it is recent e
 Over a long session that body drifts out (context rot) and writes the skill governs 
 (comment style, doc conventions, anything a rule can match) quietly stop following it.
 
-skillforcer closes both gaps. It runs as a Claude Code hook and denies a matching write
-until the required skill has loaded recently enough, so the rule is enforced at the
-moment it matters instead of left to chance.
+skillforcer closes both gaps. It runs as a hook in your coding agent (Claude Code and
+Codex CLI are supported) and denies a matching write until the required skill has loaded
+recently enough, so the rule is enforced at the moment it matters instead of left to
+chance.
 
 ## In action
 
@@ -26,12 +27,18 @@ When a rule requires the `tech-writing` skill within 15 minutes before any comme
 Claude reads the denial reason, loads the skill, and retries on its own - no human in the
 loop. The second write passes because the load is now fresh.
 
+The same loop works in Codex: the write is denied with the reason, the model reads the
+skill, and the retry passes.
+
 ## How it works
 
-Two hooks, installed by the CLI. A `PreToolUse` guard on `Write`/`Edit`/`MultiEdit`/
-`NotebookEdit` decides each write; a `PostToolUse` recorder on the `Skill` tool logs every
-load to per-session state so the guard can check freshness. The session transcript is the
-source of truth, so detection holds even across the recorder.
+Two hooks, installed by the CLI. A `PreToolUse` guard decides each write (Claude's
+`Write`/`Edit`/`MultiEdit`/`NotebookEdit`; Codex's `apply_patch`, `Edit`, `Write`, or a
+shell command that embeds one); a `PostToolUse` recorder logs skill loads (Claude's
+`Skill` tool; Codex SKILL.md reads) to per-session state. The session transcript -
+Claude's transcript or Codex's rollout - is the source of truth, so detection holds even
+across the recorder. Explicit `$skill` invocations in Codex are picked up from the
+rollout.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow-dark.svg">
@@ -73,24 +80,33 @@ From your project's root directory:
 skillforcer install
 ```
 
-`install` adds the two hooks to `.claude/settings.json` in the current project (use
-`--local` for `settings.local.json`, `--user` for `~/.claude/settings.json`) and writes
-a starter `.skillforcer.toml` if one doesn't exist. `uninstall` removes the hooks it
-added; it never touches hooks belonging to other tools.
+`install` detects your coding agent from the project: `.claude/` → Claude Code,
+`.codex/` or `.agents/skills/` → Codex CLI, both → both, neither → Claude Code.
+Force one with `--claude` or `--codex`.
+
+- Claude Code: hooks go to `.claude/settings.json` (`--local` for
+  `settings.local.json`, `--user` for `~/.claude/settings.json`).
+- Codex: hooks go to `.codex/hooks.json` (`--user` for `~/.codex/hooks.json`).
+  **After installing, run `/hooks` inside Codex and approve the skillforcer hook -
+  until it is trusted it enforces nothing, and `codex exec` skips untrusted hooks
+  silently.**
+
+`install` also writes a starter `.skillforcer.toml` if one doesn't exist. `uninstall`
+removes the hooks it added; it never touches hooks belonging to other tools.
 
 ### Configuration skill (optional)
 
-This repo also ships `skillforcer-config`, a Claude Code skill that walks you and Claude
-through writing `.skillforcer.toml`. Install it as a plugin from this repo:
+This repo also ships `skillforcer-config`, a harness-aware skill (Claude Code and Codex)
+that walks you and the model through writing `.skillforcer.toml`. Install it as a plugin
+from this repo:
 
 ```text
 /plugin marketplace add strowk/skillforcer
 /plugin install skillforcer@skillforcer
 ```
 
-`/plugin marketplace add` clones over your existing GitHub credentials, so it works while
-the repo is private. Run `/reload-plugins` if prompted; the skill is then available to
-Claude automatically and as `/skillforcer:skillforcer-config`.
+Run `/reload-plugins` if prompted; the skill is then available to Claude automatically and
+as `/skillforcer:skillforcer-config`.
 
 To use the skill without the plugin system, copy it into a skills directory instead:
 
@@ -100,6 +116,20 @@ cp -r skills/skillforcer-config ~/.claude/skills/   # personal, all projects
 ```
 
 Invoked that way it is `/skillforcer-config`.
+
+For Codex, three routes:
+
+```text
+# via Codex's plugin system (add this repo as a marketplace, then install)
+/plugins            # add strowk/skillforcer as a marketplace and install skillforcer
+
+# or via the built-in skill-installer skill
+$skill-installer install the skill from strowk/skillforcer, path skills/skillforcer-config
+```
+
+Or copy it manually: `cp -r skills/skillforcer-config ~/.agents/skills/`. Codex plugin
+tooling is still evolving; if the plugin route fails on your version, use either of the
+other two.
 
 ## Configuration
 
@@ -127,6 +157,9 @@ own and fills in `content` from the preset when the rule doesn't set one. `requi
 names the skill(s) (`any_skill` or `all_skills`, exactly one of the two) and the
 freshness window(s) that must hold. `message` supports `{file}`, `{rule}`, `{skills}`,
 and `{reason}` placeholders; omit it to use the built-in default message.
+
+Skill names match by suffix across agents: `tech-writing:technical-writing` also matches
+a Codex load of the `technical-writing` skill directory.
 
 ### Freshness modes
 

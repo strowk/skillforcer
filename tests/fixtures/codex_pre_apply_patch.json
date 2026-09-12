@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","session_id":"cdx-1","transcript_path":"/tmp/rollout.jsonl","cwd":"/proj","tool_name":"apply_patch","tool_input":{"input":"*** Begin Patch\n*** Update File: src/auth.rs\n+// refresh token\n*** End Patch"},"turn_id":"t1","permission_mode":"default"}
