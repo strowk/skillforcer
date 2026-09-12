@@ -116,8 +116,23 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             print!("{}", crate::commands::run_list_presets());
             Ok(0)
         }
-        Sub::Install(_) | Sub::Uninstall(_) => {
-            eprintln!("not implemented");
+        Sub::Install(c) => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
+            let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "skillforcer".into());
+            let target = if c.user { crate::install::Target::User } else if c.local { crate::install::Target::Local } else { crate::install::Target::Project };
+            let summary = crate::install::install(target, &exe, &cwd, c.dry_run)?;
+            println!("{summary}");
+            if !c.dry_run {
+                let created = crate::install::scaffold_config(&cwd)?;
+                println!("{}", if created { "created .skillforcer.toml" } else { ".skillforcer.toml already present" });
+            }
+            Ok(0)
+        }
+        Sub::Uninstall(c) => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
+            let target = if c.user { crate::install::Target::User } else if c.local { crate::install::Target::Local } else { crate::install::Target::Project };
+            crate::install::uninstall(target, &cwd)?;
+            println!("uninstalled skillforcer hooks");
             Ok(0)
         }
     }
