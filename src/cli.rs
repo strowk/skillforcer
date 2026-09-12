@@ -27,7 +27,7 @@ pub struct HookCmd {
     pub harness: String,
 }
 
-/// Install skillforcer hooks into Claude settings.
+/// Install skillforcer hooks into the agent's settings (Claude Code or Codex CLI).
 #[derive(FromArgs, Debug)]
 #[argh(subcommand, name = "install")]
 pub struct InstallCmd {
@@ -48,7 +48,7 @@ pub struct InstallCmd {
     pub codex: bool,
 }
 
-/// Remove skillforcer hooks from Claude settings.
+/// Remove skillforcer hooks from the agent's settings (Claude Code or Codex CLI).
 #[derive(FromArgs, Debug)]
 #[argh(subcommand, name = "uninstall")]
 pub struct UninstallCmd {
@@ -91,6 +91,43 @@ pub struct StatusCmd {
 #[derive(FromArgs, Debug)]
 #[argh(subcommand, name = "list-presets")]
 pub struct ListPresetsCmd {}
+
+/// Resolves which harnesses an install/uninstall run targets: `--claude`/`--codex`
+/// pick explicitly, otherwise falls back to `detected`. `--local` has no Codex
+/// analogue, so it drops Codex from the result unless `--codex` was explicit —
+/// bare `--local` must still install/uninstall Claude-local even when `.codex/`
+/// is also present. `--local` combined with an explicit `--codex` is a genuine
+/// conflict and errors.
+fn resolve_harnesses(
+    explicit_claude: bool,
+    explicit_codex: bool,
+    local: bool,
+    detected: Vec<crate::model::Harness>,
+) -> anyhow::Result<Vec<crate::model::Harness>> {
+    if local && explicit_codex {
+        anyhow::bail!("--local is Claude-only; use --codex without --local");
+    }
+    let harnesses = if explicit_claude || explicit_codex {
+        let mut v = Vec::new();
+        if explicit_claude {
+            v.push(crate::model::Harness::Claude);
+        }
+        if explicit_codex {
+            v.push(crate::model::Harness::Codex);
+        }
+        v
+    } else {
+        detected
+    };
+    Ok(if local {
+        harnesses
+            .into_iter()
+            .filter(|h| *h != crate::model::Harness::Codex)
+            .collect()
+    } else {
+        harnesses
+    })
+}
 
 pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
     match cli.sub {
@@ -150,21 +187,12 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             } else {
                 crate::install::Target::Project
             };
-            let harnesses: Vec<crate::model::Harness> = if c.claude || c.codex {
-                let mut v = Vec::new();
-                if c.claude {
-                    v.push(crate::model::Harness::Claude);
-                }
-                if c.codex {
-                    v.push(crate::model::Harness::Codex);
-                }
-                v
-            } else {
-                crate::install::detect_harnesses(&cwd)
-            };
-            if c.local && harnesses.contains(&crate::model::Harness::Codex) {
-                anyhow::bail!("--local is Claude-only; use --codex without --local");
-            }
+            let harnesses = resolve_harnesses(
+                c.claude,
+                c.codex,
+                c.local,
+                crate::install::detect_harnesses(&cwd),
+            )?;
             for h in harnesses {
                 let summary = crate::install::install(target, &exe, &cwd, c.dry_run, h)?;
                 println!("{summary}");
@@ -194,21 +222,12 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             } else {
                 crate::install::Target::Project
             };
-            let harnesses: Vec<crate::model::Harness> = if c.claude || c.codex {
-                let mut v = Vec::new();
-                if c.claude {
-                    v.push(crate::model::Harness::Claude);
-                }
-                if c.codex {
-                    v.push(crate::model::Harness::Codex);
-                }
-                v
-            } else {
-                crate::install::detect_harnesses(&cwd)
-            };
-            if c.local && harnesses.contains(&crate::model::Harness::Codex) {
-                anyhow::bail!("--local is Claude-only; use --codex without --local");
-            }
+            let harnesses = resolve_harnesses(
+                c.claude,
+                c.codex,
+                c.local,
+                crate::install::detect_harnesses(&cwd),
+            )?;
             for h in harnesses {
                 crate::install::uninstall(target, &cwd, h)?;
             }
@@ -230,5 +249,27 @@ mod tests {
     fn parses_hook_subcommand() {
         let cli = Cli::from_args(&["skillforcer"], &["hook"]).unwrap();
         assert!(matches!(cli.sub, Sub::Hook(_)));
+    }
+
+    #[test]
+    fn bare_local_drops_detected_codex_without_erroring() {
+        use crate::model::Harness;
+        let detected = vec![Harness::Claude, Harness::Codex];
+        let harnesses = resolve_harnesses(false, false, true, detected).unwrap();
+        assert_eq!(harnesses, vec![Harness::Claude]);
+    }
+
+    #[test]
+    fn local_with_explicit_codex_flag_errors() {
+        use crate::model::Harness;
+        let detected = vec![Harness::Claude];
+        assert!(resolve_harnesses(false, true, true, detected).is_err());
+    }
+
+    #[test]
+    fn local_with_explicit_claude_flag_keeps_claude() {
+        use crate::model::Harness;
+        let harnesses = resolve_harnesses(true, false, true, vec![]).unwrap();
+        assert_eq!(harnesses, vec![Harness::Claude]);
     }
 }

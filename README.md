@@ -33,11 +33,12 @@ skill, and the retry passes.
 ## How it works
 
 Two hooks, installed by the CLI. A `PreToolUse` guard decides each write (Claude's
-`Write`/`Edit`/`MultiEdit`/`NotebookEdit`; Codex's `apply_patch`); a `PostToolUse`
-recorder logs skill loads (Claude's `Skill` tool; Codex SKILL.md reads) to per-session
-state. The session transcript - Claude's transcript or Codex's rollout - is the source
-of truth, so detection holds even across the recorder. Explicit `$skill` invocations in
-Codex are picked up from the rollout.
+`Write`/`Edit`/`MultiEdit`/`NotebookEdit`; Codex's `apply_patch`, `Edit`, `Write`, or a
+shell command that embeds one); a `PostToolUse` recorder logs skill loads (Claude's
+`Skill` tool; Codex SKILL.md reads) to per-session state. The session transcript -
+Claude's transcript or Codex's rollout - is the source of truth, so detection holds even
+across the recorder. Explicit `$skill` invocations in Codex are picked up from the
+rollout.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow-dark.svg">
@@ -95,17 +96,17 @@ removes the hooks it added; it never touches hooks belonging to other tools.
 
 ### Configuration skill (optional)
 
-This repo also ships `skillforcer-config`, a Claude Code skill that walks you and Claude
-through writing `.skillforcer.toml`. Install it as a plugin from this repo:
+This repo also ships `skillforcer-config`, a harness-aware skill (Claude Code and Codex)
+that walks you and the model through writing `.skillforcer.toml`. Install it as a plugin
+from this repo:
 
 ```text
 /plugin marketplace add strowk/skillforcer
 /plugin install skillforcer@skillforcer
 ```
 
-`/plugin marketplace add` clones over your existing GitHub credentials, so it works while
-the repo is private. Run `/reload-plugins` if prompted; the skill is then available to
-Claude automatically and as `/skillforcer:skillforcer-config`.
+Run `/reload-plugins` if prompted; the skill is then available to Claude automatically and
+as `/skillforcer:skillforcer-config`.
 
 To use the skill without the plugin system, copy it into a skills directory instead:
 

@@ -13,7 +13,7 @@ pub fn message_for(rule: &RuleDef, ev: &WriteEvent, reason: &str, harness: Harne
     };
     let template = rule.message.clone().unwrap_or_else(|| match harness {
         Harness::Claude => "skillforcer: rule '{rule}' requires skill(s) {skills} before writing {file}. {reason}. Load it now: Skill(\"{skills}\")".to_string(),
-        Harness::Codex => "skillforcer: rule '{rule}' requires skill(s) {skills} before writing {file}. {reason}. Load it now: invoke ${skills} or read its SKILL.md".to_string(),
+        Harness::Codex => "skillforcer: rule '{rule}' requires skill(s) {skills} before writing {file}. {reason}. Load it now: invoke the skill(s) {skills} (a $-mention in Codex) or read its SKILL.md".to_string(),
     });
     template
         .replace("{file}", &ev.path.display().to_string())
@@ -59,7 +59,7 @@ pub fn run_hook(
                 Harness::Claude => claude::skill_from_tool(&p.tool_name, &p.tool_input)
                     .into_iter()
                     .collect(),
-                Harness::Codex => crate::adapter::codex::skill_reads_in_text(
+                Harness::Codex => crate::adapter::codex::skill_loads_in_text(
                     &crate::adapter::codex::command_text(&p.tool_input),
                 ),
             };
@@ -455,7 +455,11 @@ mod tests {
             content: String::new(),
         };
         let msg = message_for(&rule, &ev, "never loaded", Harness::Codex);
-        assert!(msg.contains("$tech-writing"), "got: {msg}");
+        assert!(
+            msg.contains("invoke the skill(s) tech-writing"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("$-mention"), "got: {msg}");
         assert!(msg.contains("SKILL.md"), "got: {msg}");
         let claude_msg = message_for(&rule, &ev, "never loaded", Harness::Claude);
         assert!(

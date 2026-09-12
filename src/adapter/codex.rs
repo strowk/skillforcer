@@ -41,10 +41,10 @@ pub fn parse_apply_patch(text: &str) -> Vec<WriteEvent> {
         } else if line.starts_with("*** ") {
             // Begin Patch header, Delete File, or any future marker: closes the section
             flush(&mut path, &mut added, &mut events);
-        } else if let Some(a) = line.strip_prefix('+') {
-            if path.is_some() {
-                added.push(a.to_string());
-            }
+        } else if let Some(a) = line.strip_prefix('+')
+            && path.is_some()
+        {
+            added.push(a.to_string());
         }
     }
     flush(&mut path, &mut added, &mut events);
@@ -89,6 +89,55 @@ pub fn skill_reads_in_text(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for m in re.find_iter(text) {
         let normalized = m.as_str().replace('\\', "/");
+        let mut parts = normalized.rsplit('/');
+        parts.next(); // SKILL.md
+        if let Some(name) = parts.next()
+            && !name.is_empty()
+            && !out.iter().any(|n| n == name)
+        {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+/// Returns skill names for `SKILL.md` references in `text` that are actually
+/// being read, excluding ones that are write targets in the same text: an
+/// `apply_patch` Add/Update target, a shell redirect (`>`/`>>`) destination,
+/// or the argument of a removal command (`rm`, `Remove-Item`, `del`). A write
+/// to a skill's file must never register as a load of that skill.
+///
+/// Conservative by design: an ambiguous reference is dropped, not counted —
+/// an extra deny is acceptable, a wrong allow is not.
+pub fn skill_loads_in_text(text: &str) -> Vec<String> {
+    let write_targets: Vec<String> = parse_apply_patch(text)
+        .into_iter()
+        .map(|ev| ev.path.to_string_lossy().replace('\\', "/"))
+        .collect();
+
+    let re = regex::Regex::new(r"[A-Za-z0-9_@.~:\-/\\]+[/\\]SKILL\.md").expect("static regex");
+    let mut out: Vec<String> = Vec::new();
+    for m in re.find_iter(text) {
+        let normalized = m.as_str().replace('\\', "/");
+
+        if write_targets
+            .iter()
+            .any(|w| normalized.ends_with(w.as_str()))
+        {
+            continue;
+        }
+        if text[..m.start()].trim_end().ends_with('>') {
+            continue;
+        }
+        let line_start = text[..m.start()].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let removal_cmd = text[line_start..m.start()]
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
+        if matches!(removal_cmd, "rm" | "Remove-Item" | "del") {
+            continue;
+        }
+
         let mut parts = normalized.rsplit('/');
         parts.next(); // SKILL.md
         if let Some(name) = parts.next()
@@ -163,7 +212,7 @@ mod patch_tests {
 
 #[cfg(test)]
 mod extract_tests {
-    use super::{skill_reads_in_text, write_events_from_tool};
+    use super::{skill_loads_in_text, skill_reads_in_text, write_events_from_tool};
     use crate::adapter::claude::{HookInput, parse_hook_input};
 
     #[test]
@@ -223,5 +272,32 @@ mod extract_tests {
     #[test]
     fn no_skill_reads_in_ordinary_command() {
         assert!(skill_reads_in_text("cargo build --release").is_empty());
+    }
+
+    #[test]
+    fn apply_patch_update_of_skill_md_is_not_a_load() {
+        let p = "*** Begin Patch\n*** Update File: x/foo/SKILL.md\n+new body\n*** End Patch";
+        assert!(skill_loads_in_text(p).is_empty());
+    }
+
+    #[test]
+    fn shell_redirect_write_to_skill_md_is_not_a_load() {
+        assert!(skill_loads_in_text("cat > x/foo/SKILL.md <<'EOF'\nbody\nEOF").is_empty());
+        assert!(skill_loads_in_text("echo body >> x/foo/SKILL.md").is_empty());
+    }
+
+    #[test]
+    fn removal_of_skill_md_is_not_a_load() {
+        assert!(skill_loads_in_text("rm x/foo/SKILL.md").is_empty());
+        assert!(skill_loads_in_text("Remove-Item x/foo/SKILL.md").is_empty());
+        assert!(skill_loads_in_text("del x/foo/SKILL.md").is_empty());
+    }
+
+    #[test]
+    fn genuine_read_of_skill_md_is_still_a_load() {
+        assert_eq!(
+            skill_loads_in_text("cat x/foo/SKILL.md"),
+            vec!["foo".to_string()]
+        );
     }
 }

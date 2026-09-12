@@ -7,7 +7,7 @@
 //! is not documented as stable: unknown item kinds and unparseable lines are
 //! skipped, and token/turn accounting degrades gracefully.
 
-use crate::adapter::codex::skill_reads_in_text;
+use crate::adapter::codex::{skill_loads_in_text, skill_reads_in_text};
 use crate::model::{Cursor, SkillLoad};
 use crate::transcript::Scan;
 use anyhow::Result;
@@ -88,7 +88,7 @@ pub fn scan(path: &Path, from: Cursor) -> Result<Scan> {
                     .pointer("/payload/arguments")
                     .and_then(|s| s.as_str())
                     .unwrap_or("");
-                for skill in skill_reads_in_text(args) {
+                for skill in skill_loads_in_text(args) {
                     loads.push(SkillLoad {
                         skill,
                         at,

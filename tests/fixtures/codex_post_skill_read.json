@@ -1,1 +1,0 @@
-{"hook_event_name":"PostToolUse","session_id":"cdx-1","transcript_path":"/tmp/rollout.jsonl","cwd":"/proj","tool_name":"Bash","tool_input":{"command":["bash","-lc","cat .agents/skills/tech-writing/SKILL.md"]}}
