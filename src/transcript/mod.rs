@@ -11,6 +11,8 @@
 //! API reports per-request rather than per-turn and would double-count
 //! cached context across turns.
 
+pub mod codex;
+
 use crate::model::{Cursor, SkillLoad};
 use anyhow::Result;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
