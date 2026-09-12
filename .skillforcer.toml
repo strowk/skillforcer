@@ -1,0 +1,13 @@
+# skillforcer configuration.
+
+[defaults]
+fail_open = true          # a skillforcer error never blocks a write
+combine_freshness = "all" # when multiple windows are set, all must hold
+
+# Example: force the tech-writing skill before comment edits in Rust.
+[[rule]]
+name = "comments-need-tech-writing"
+extends = ["code-comments"]
+path = ["src/**/*.rs"]
+requires = { any_skill = ["tech-writing:technical-writing"], minutes = 15 }
+message = "Editing comments in {file}. Load {skills} first — context may have rotted."
