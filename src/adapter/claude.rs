@@ -89,7 +89,10 @@ pub fn write_event_from_tool(tool_name: &str, input: &serde_json::Value) -> Opti
         "NotebookEdit" => (s("notebook_path")?, s("new_source")?),
         _ => return None,
     };
-    Some(WriteEvent { path: PathBuf::from(path), content })
+    Some(WriteEvent {
+        path: PathBuf::from(path),
+        content,
+    })
 }
 
 #[cfg(test)]
@@ -104,10 +107,16 @@ mod tests {
 
     #[test]
     fn deny_renders_permission_json() {
-        let v = render_decision(&Decision::Deny { reason: "load it".into() }).unwrap();
+        let v = render_decision(&Decision::Deny {
+            reason: "load it".into(),
+        })
+        .unwrap();
         assert_eq!(v["hookSpecificOutput"]["hookEventName"], "PreToolUse");
         assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
-        assert_eq!(v["hookSpecificOutput"]["permissionDecisionReason"], "load it");
+        assert_eq!(
+            v["hookSpecificOutput"]["permissionDecisionReason"],
+            "load it"
+        );
     }
 }
 
@@ -118,7 +127,9 @@ mod parse_tests {
     #[test]
     fn parses_pre_write_and_extracts_content() {
         let raw = include_str!("../../tests/fixtures/pre_write.json");
-        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else { panic!() };
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
         assert_eq!(p.tool_name, "Write");
         let ev = write_event_from_tool(&p.tool_name, &p.tool_input).unwrap();
         assert_eq!(ev.path.to_str().unwrap(), "src/lib.rs");
@@ -128,7 +139,9 @@ mod parse_tests {
     #[test]
     fn edit_uses_new_string() {
         let raw = include_str!("../../tests/fixtures/pre_edit.json");
-        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else { panic!() };
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
         let ev = write_event_from_tool(&p.tool_name, &p.tool_input).unwrap();
         assert_eq!(ev.content, "// new comment");
     }
@@ -136,7 +149,9 @@ mod parse_tests {
     #[test]
     fn notebook_uses_notebook_path_and_new_source() {
         let raw = include_str!("../../tests/fixtures/pre_notebook.json");
-        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else { panic!() };
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
         let ev = write_event_from_tool(&p.tool_name, &p.tool_input).unwrap();
         assert_eq!(ev.path.to_str().unwrap(), "nb.ipynb");
         assert_eq!(ev.content, "# heading");
@@ -150,7 +165,12 @@ mod parse_tests {
     #[test]
     fn extracts_skill_from_post() {
         let raw = include_str!("../../tests/fixtures/post_skill.json");
-        let HookInput::PostToolUse(p) = parse_hook_input(raw).unwrap() else { panic!() };
-        assert_eq!(skill_from_tool(&p.tool_name, &p.tool_input).unwrap(), "tech-writing:technical-writing");
+        let HookInput::PostToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            skill_from_tool(&p.tool_name, &p.tool_input).unwrap(),
+            "tech-writing:technical-writing"
+        );
     }
 }

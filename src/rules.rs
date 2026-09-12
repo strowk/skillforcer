@@ -1,4 +1,4 @@
-use crate::config::{resolve_extends, RuleDef};
+use crate::config::{RuleDef, resolve_extends};
 use crate::model::WriteEvent;
 use anyhow::{Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -22,10 +22,16 @@ pub fn compile(rule: &RuleDef) -> Result<CompiledRule> {
         Some(b.build()?)
     };
     let content = match &def.content {
-        Some(re) => Some(Regex::new(re).with_context(|| format!("rule '{}': bad regex", def.name))?),
+        Some(re) => {
+            Some(Regex::new(re).with_context(|| format!("rule '{}': bad regex", def.name))?)
+        }
         None => None,
     };
-    Ok(CompiledRule { def, globset, content })
+    Ok(CompiledRule {
+        def,
+        globset,
+        content,
+    })
 }
 
 impl CompiledRule {
@@ -57,12 +63,21 @@ mod tests {
             extends: vec![],
             path: path.into_iter().map(String::from).collect(),
             content: content.map(String::from),
-            requires: Requires { skills: SkillSet::Any(vec!["s".into()]), windows: Windows { session: true, ..Default::default() } },
+            requires: Requires {
+                skills: SkillSet::Any(vec!["s".into()]),
+                windows: Windows {
+                    session: true,
+                    ..Default::default()
+                },
+            },
             message: None,
         }
     }
     fn ev(path: &str, content: &str) -> WriteEvent {
-        WriteEvent { path: PathBuf::from(path), content: content.into() }
+        WriteEvent {
+            path: PathBuf::from(path),
+            content: content.into(),
+        }
     }
 
     #[test]

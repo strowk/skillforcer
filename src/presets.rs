@@ -12,9 +12,23 @@ static PRESETS: &[Preset] = &[
     Preset {
         name: "code-comments",
         content: Some(CODE_COMMENTS),
-        path: &["**/*.rs", "**/*.ts", "**/*.js", "**/*.go", "**/*.py", "**/*.c", "**/*.h", "**/*.cpp", "**/*.java"],
+        path: &[
+            "**/*.rs",
+            "**/*.ts",
+            "**/*.js",
+            "**/*.go",
+            "**/*.py",
+            "**/*.c",
+            "**/*.h",
+            "**/*.cpp",
+            "**/*.java",
+        ],
     },
-    Preset { name: "markdown-headings", content: Some(MD_HEADINGS), path: &["**/*.md"] },
+    Preset {
+        name: "markdown-headings",
+        content: Some(MD_HEADINGS),
+        path: &["**/*.md"],
+    },
 ];
 
 pub fn builtin() -> &'static [Preset] {

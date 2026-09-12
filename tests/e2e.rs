@@ -30,18 +30,29 @@ fn hook_denies_uncovered_comment_write() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.take().unwrap().write_all(hook.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(hook.as_bytes())
+        .unwrap();
     let out = child.wait_with_output().unwrap();
     let stdout = String::from_utf8_lossy(&out.stdout);
     // render_and_print prints serde_json::Value via `println!("{v}")`, which
     // is compact JSON (no spaces around `:`).
-    assert!(stdout.contains("\"permissionDecision\":\"deny\""), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("\"permissionDecision\":\"deny\""),
+        "stdout was: {stdout}"
+    );
     assert!(stdout.contains("tech-writing"));
 }
 
 #[test]
 fn list_presets_runs() {
-    let out = Command::new(env!("CARGO_BIN_EXE_skillforcer")).arg("list-presets").output().unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_skillforcer"))
+        .arg("list-presets")
+        .output()
+        .unwrap();
     assert!(out.status.success());
     assert!(String::from_utf8_lossy(&out.stdout).contains("code-comments"));
 }

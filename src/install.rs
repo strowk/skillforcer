@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
 pub const PRE_MATCHER: &str = "Write|Edit|MultiEdit|NotebookEdit";
@@ -29,7 +29,14 @@ fn is_ours(entry: &Value) -> bool {
     entry
         .get("hooks")
         .and_then(|h| h.as_array())
-        .map(|arr| arr.iter().any(|h| h.get("command").and_then(|c| c.as_str()).map(|c| c.contains("skillforcer")).unwrap_or(false)))
+        .map(|arr| {
+            arr.iter().any(|h| {
+                h.get("command")
+                    .and_then(|c| c.as_str())
+                    .map(|c| c.contains("skillforcer"))
+                    .unwrap_or(false)
+            })
+        })
         .unwrap_or(false)
 }
 
@@ -46,13 +53,19 @@ fn ensure_event(root: &mut Value, event: &str, matcher: &str, exe: &str) {
     if !hooks.is_object() {
         *hooks = json!({});
     }
-    let arr = hooks.as_object_mut().expect("just ensured object").entry(event).or_insert_with(|| json!([]));
+    let arr = hooks
+        .as_object_mut()
+        .expect("just ensured object")
+        .entry(event)
+        .or_insert_with(|| json!([]));
     if !arr.is_array() {
         *arr = json!([]);
     }
     let arr = arr.as_array_mut().expect("just ensured array");
     // idempotent: skip if one of ours with this matcher already exists
-    let exists = arr.iter().any(|e| is_ours(e) && e.get("matcher").and_then(|m| m.as_str()) == Some(matcher));
+    let exists = arr
+        .iter()
+        .any(|e| is_ours(e) && e.get("matcher").and_then(|m| m.as_str()) == Some(matcher));
     if !exists {
         arr.push(event_entry(matcher, exe));
     }
@@ -67,7 +80,9 @@ pub fn add_hooks(root: &mut Value, exe: &str) {
 }
 
 pub fn remove_hooks(root: &mut Value) {
-    let Some(hooks) = root.get_mut("hooks").and_then(|h| h.as_object_mut()) else { return };
+    let Some(hooks) = root.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
+        return;
+    };
     for event in ["PreToolUse", "PostToolUse"] {
         if let Some(arr) = hooks.get_mut(event).and_then(|a| a.as_array_mut()) {
             arr.retain(|e| !is_ours(e));
@@ -77,7 +92,9 @@ pub fn remove_hooks(root: &mut Value) {
 
 fn read_root(path: &Path) -> Result<Value> {
     match std::fs::read_to_string(path) {
-        Ok(s) if !s.trim().is_empty() => Ok(serde_json::from_str(&s).context("parsing settings.json")?),
+        Ok(s) if !s.trim().is_empty() => {
+            Ok(serde_json::from_str(&s).context("parsing settings.json")?)
+        }
         _ => Ok(json!({})),
     }
 }
@@ -96,7 +113,11 @@ pub fn install(target: Target, exe: &str, project_dir: &Path, dry_run: bool) -> 
     add_hooks(&mut root, exe);
     let pretty = serde_json::to_string_pretty(&root)?;
     if dry_run {
-        return Ok(format!("[dry-run] would write {}:\n{}", path.display(), pretty));
+        return Ok(format!(
+            "[dry-run] would write {}:\n{}",
+            path.display(),
+            pretty
+        ));
     }
     write_root(&path, &root)?;
     Ok(format!("installed hooks into {}", path.display()))
@@ -150,7 +171,12 @@ mod tests {
         assert_eq!(post.as_array().unwrap().len(), 1);
         // matcher + command present
         assert_eq!(pre[0]["matcher"], "Write|Edit|MultiEdit|NotebookEdit");
-        assert!(pre[0]["hooks"][0]["command"].as_str().unwrap().contains("skillforcer"));
+        assert!(
+            pre[0]["hooks"][0]["command"]
+                .as_str()
+                .unwrap()
+                .contains("skillforcer")
+        );
     }
 
     #[test]

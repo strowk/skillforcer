@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -37,7 +37,10 @@ pub struct Defaults {
 }
 impl Default for Defaults {
     fn default() -> Self {
-        Self { fail_open: true, combine_freshness: Combine::All }
+        Self {
+            fail_open: true,
+            combine_freshness: Combine::All,
+        }
     }
 }
 
@@ -105,8 +108,15 @@ fn convert_rule(r: RawRule) -> Result<RuleDef> {
         turns: r.requires.turns,
         tokens: r.requires.tokens,
     };
-    if !windows.session && windows.minutes.is_none() && windows.turns.is_none() && windows.tokens.is_none() {
-        bail!("rule '{}': at least one freshness window (session/minutes/turns/tokens) is required", r.name);
+    if !windows.session
+        && windows.minutes.is_none()
+        && windows.turns.is_none()
+        && windows.tokens.is_none()
+    {
+        bail!(
+            "rule '{}': at least one freshness window (session/minutes/turns/tokens) is required",
+            r.name
+        );
     }
     Ok(RuleDef {
         name: r.name,
@@ -126,7 +136,11 @@ pub fn parse_str(project_toml: &str, global_toml: Option<&str>) -> Result<Config
     let project: RawConfig = toml::from_str(project_toml).context("parsing project config")?;
 
     let defaults = Defaults {
-        fail_open: project.defaults.fail_open.or(global.defaults.fail_open).unwrap_or(true),
+        fail_open: project
+            .defaults
+            .fail_open
+            .or(global.defaults.fail_open)
+            .unwrap_or(true),
         combine_freshness: project
             .defaults
             .combine_freshness
@@ -261,7 +275,13 @@ mod extends_tests {
             extends: vec!["code-comments".into()],
             path: vec!["src/**/*.rs".into()],
             content: None,
-            requires: Requires { skills: SkillSet::Any(vec!["s".into()]), windows: Windows { session: true, ..Default::default() } },
+            requires: Requires {
+                skills: SkillSet::Any(vec!["s".into()]),
+                windows: Windows {
+                    session: true,
+                    ..Default::default()
+                },
+            },
             message: None,
         };
         let resolved = resolve_extends(&rule).unwrap();
@@ -271,8 +291,17 @@ mod extends_tests {
     #[test]
     fn unknown_preset_errors() {
         let rule = RuleDef {
-            name: "c".into(), extends: vec!["nope".into()], path: vec![], content: Some("x".into()),
-            requires: Requires { skills: SkillSet::All(vec!["s".into()]), windows: Windows { session: true, ..Default::default() } },
+            name: "c".into(),
+            extends: vec!["nope".into()],
+            path: vec![],
+            content: Some("x".into()),
+            requires: Requires {
+                skills: SkillSet::All(vec!["s".into()]),
+                windows: Windows {
+                    session: true,
+                    ..Default::default()
+                },
+            },
             message: None,
         };
         assert!(resolve_extends(&rule).is_err());

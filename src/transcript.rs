@@ -106,7 +106,11 @@ mod tests {
 
     #[test]
     fn finds_skill_load_with_turn_and_tokens() {
-        let scan = scan(Path::new("tests/fixtures/transcript.jsonl"), Cursor::default()).unwrap();
+        let scan = scan(
+            Path::new("tests/fixtures/transcript.jsonl"),
+            Cursor::default(),
+        )
+        .unwrap();
         assert_eq!(scan.skill_loads.len(), 1);
         let s = &scan.skill_loads[0];
         assert_eq!(s.skill, "tech-writing");
@@ -118,7 +122,11 @@ mod tests {
 
     #[test]
     fn incremental_from_cursor_returns_no_old_loads() {
-        let first = scan(Path::new("tests/fixtures/transcript.jsonl"), Cursor::default()).unwrap();
+        let first = scan(
+            Path::new("tests/fixtures/transcript.jsonl"),
+            Cursor::default(),
+        )
+        .unwrap();
         let second = scan(Path::new("tests/fixtures/transcript.jsonl"), first.end).unwrap();
         assert!(second.skill_loads.is_empty());
         assert_eq!(second.end.turn, 4);

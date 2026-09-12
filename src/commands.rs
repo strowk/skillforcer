@@ -33,7 +33,12 @@ fn refresh_state(st: &mut SessionState, transcript_path: &Path) {
     }
 }
 
-pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Option<&Path>) -> Decision {
+pub fn run_hook(
+    raw: &str,
+    store: &Store,
+    project_dir: &Path,
+    global_path: Option<&Path>,
+) -> Decision {
     let input = match claude::parse_hook_input(raw) {
         Ok(i) => i,
         Err(e) => {
@@ -64,7 +69,11 @@ pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Optio
                 return Decision::Allow;
             };
             // Resolve project dir from the hook's cwd when present.
-            let proj = if p.cwd.as_os_str().is_empty() { project_dir.to_path_buf() } else { p.cwd.clone() };
+            let proj = if p.cwd.as_os_str().is_empty() {
+                project_dir.to_path_buf()
+            } else {
+                p.cwd.clone()
+            };
             let cfg: Config = match config::load(&proj, global_path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -80,24 +89,38 @@ pub fn run_hook(raw: &str, store: &Store, project_dir: &Path, global_path: Optio
             let _ = store.save(&st);
             store.prune(std::time::Duration::from_secs(60 * 60 * 24 * 7));
 
-            let now = Now { time: jiff::Timestamp::now(), turn: st.cursor.turn, tokens: st.cursor.tokens };
+            let now = Now {
+                time: jiff::Timestamp::now(),
+                turn: st.cursor.turn,
+                tokens: st.cursor.tokens,
+            };
 
             for rule in &cfg.rules {
                 let compiled = match rules::compile(rule) {
                     Ok(c) => c,
                     Err(e) => {
                         if fail_open {
-                            eprintln!("skillforcer: rule '{}' failed to compile: {e}; skipping", rule.name);
-                            continue
+                            eprintln!(
+                                "skillforcer: rule '{}' failed to compile: {e}; skipping",
+                                rule.name
+                            );
+                            continue;
                         } else {
-                            return Decision::Deny { reason: format!("skillforcer: rule '{}' failed to compile", rule.name) }
+                            return Decision::Deny {
+                                reason: format!(
+                                    "skillforcer: rule '{}' failed to compile",
+                                    rule.name
+                                ),
+                            };
                         }
                     }
                 };
                 if compiled.matches(&ev) {
                     let res = freshness::evaluate(&compiled.def.requires, &st.loads, &now, combine);
                     if !res.satisfied {
-                        return Decision::Deny { reason: message_for(&compiled.def, &ev, &res.reason) };
+                        return Decision::Deny {
+                            reason: message_for(&compiled.def, &ev, &res.reason),
+                        };
                     }
                 }
             }
@@ -113,9 +136,17 @@ pub fn render_and_print(d: &Decision) {
     }
 }
 
-pub fn run_check(project_dir: &Path, file: &Path, content: &str, global: Option<&Path>) -> anyhow::Result<Vec<String>> {
+pub fn run_check(
+    project_dir: &Path,
+    file: &Path,
+    content: &str,
+    global: Option<&Path>,
+) -> anyhow::Result<Vec<String>> {
     let cfg = config::load(project_dir, global)?;
-    let ev = WriteEvent { path: file.to_path_buf(), content: content.to_string() };
+    let ev = WriteEvent {
+        path: file.to_path_buf(),
+        content: content.to_string(),
+    };
     let mut hits = Vec::new();
     for rule in &cfg.rules {
         match rules::compile(rule) {
@@ -125,7 +156,10 @@ pub fn run_check(project_dir: &Path, file: &Path, content: &str, global: Option<
                 }
             }
             Err(e) => {
-                eprintln!("skillforcer: rule '{}' failed to compile: {e}; skipping", rule.name);
+                eprintln!(
+                    "skillforcer: rule '{}' failed to compile: {e}; skipping",
+                    rule.name
+                );
             }
         }
     }
@@ -150,10 +184,17 @@ pub fn run_status(store: &Store, session_id: &str) -> String {
     let st = store.load(session_id);
     let mut out = format!(
         "session {}: {} skill load(s); cursor turn={} tokens={} offset={}\n",
-        st.session_id, st.loads.len(), st.cursor.turn, st.cursor.tokens, st.cursor.offset
+        st.session_id,
+        st.loads.len(),
+        st.cursor.turn,
+        st.cursor.tokens,
+        st.cursor.offset
     );
     for l in &st.loads {
-        out.push_str(&format!("  - {} @ {} (turn {}, {} tokens)\n", l.skill, l.at, l.turn, l.tokens));
+        out.push_str(&format!(
+            "  - {} @ {} (turn {}, {} tokens)\n",
+            l.skill, l.at, l.turn, l.tokens
+        ));
     }
     out
 }
@@ -167,11 +208,14 @@ mod cmd_tests {
     fn check_reports_matching_rule() {
         let proj = tempfile::tempdir().unwrap();
         let mut f = std::fs::File::create(proj.path().join(".skillforcer.toml")).unwrap();
-        f.write_all(br#"[[rule]]
+        f.write_all(
+            br#"[[rule]]
             name = "comments"
             path = ["**/*.rs"]
             content = "//"
-            requires = { any_skill = ["tech-writing"], session = true }"#).unwrap();
+            requires = { any_skill = ["tech-writing"], session = true }"#,
+        )
+        .unwrap();
         let hits = run_check(proj.path(), std::path::Path::new("src/a.rs"), "// c", None).unwrap();
         assert_eq!(hits, vec!["comments".to_string()]);
     }
@@ -239,15 +283,23 @@ mod tests {
         let esc = |p: &std::path::Path| p.display().to_string().replace('\\', "\\\\");
         let post = format!(
             r#"{{"hook_event_name":"PostToolUse","session_id":"s","transcript_path":"{}","cwd":"{}","tool_name":"Skill","tool_input":{{"skill":"tech-writing"}}}}"#,
-            esc(&transcript), esc(proj.path()),
+            esc(&transcript),
+            esc(proj.path()),
         );
-        assert!(matches!(run_hook(&post, &store, proj.path(), None), Decision::Allow));
+        assert!(matches!(
+            run_hook(&post, &store, proj.path(), None),
+            Decision::Allow
+        ));
 
         let pre = format!(
             r#"{{"hook_event_name":"PreToolUse","session_id":"s","transcript_path":"{}","cwd":"{}","tool_name":"Write","tool_input":{{"file_path":"src/a.rs","content":"// hi"}}}}"#,
-            esc(&transcript), esc(proj.path()),
+            esc(&transcript),
+            esc(proj.path()),
         );
-        assert!(matches!(run_hook(&pre, &store, proj.path(), None), Decision::Allow));
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None),
+            Decision::Allow
+        ));
     }
 
     #[test]
@@ -260,15 +312,22 @@ mod tests {
         let esc = |p: &std::path::Path| p.display().to_string().replace('\\', "\\\\");
         let pre = format!(
             r#"{{"hook_event_name":"PreToolUse","session_id":"s","transcript_path":"{}","cwd":"{}","tool_name":"Write","tool_input":{{"file_path":"README.md","content":"no comment"}}}}"#,
-            esc(&transcript), esc(proj.path()),
+            esc(&transcript),
+            esc(proj.path()),
         );
-        assert!(matches!(run_hook(&pre, &store, proj.path(), None), Decision::Allow));
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None),
+            Decision::Allow
+        ));
     }
 
     #[test]
     fn malformed_input_fails_open() {
         let statedir = tempfile::tempdir().unwrap();
         let store = Store::with_base(statedir.path().to_path_buf());
-        assert!(matches!(run_hook("not json", &store, std::path::Path::new("."), None), Decision::Allow));
+        assert!(matches!(
+            run_hook("not json", &store, std::path::Path::new("."), None),
+            Decision::Allow
+        ));
     }
 }
