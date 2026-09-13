@@ -1,6 +1,6 @@
 {
   "name": "skillforcer",
   "description": "Guidance for configuring skillforcer, which forces skills to load before governed writes.",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "author": { "name": "skillforcer" }
 }
