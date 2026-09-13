@@ -192,6 +192,7 @@ Reference one from `extends` instead of copying its `path`/`content` into every 
   content, from the file or stdin), without needing a session or transcript.
 - `skillforcer status [--session ID]` - prints the recorded skill loads and transcript
   cursor (offset/turn/tokens) for a session, from the on-disk state store.
+- `skillforcer version` - prints the installed version.
 
 ## Fail-open
 

@@ -16,6 +16,7 @@ pub enum Sub {
     Check(CheckCmd),
     Status(StatusCmd),
     ListPresets(ListPresetsCmd),
+    Version(VersionCmd),
 }
 
 /// Run as an agent hook (reads hook JSON on stdin).
@@ -91,6 +92,11 @@ pub struct StatusCmd {
 #[derive(FromArgs, Debug)]
 #[argh(subcommand, name = "list-presets")]
 pub struct ListPresetsCmd {}
+
+/// Print the skillforcer version.
+#[derive(FromArgs, Debug)]
+#[argh(subcommand, name = "version")]
+pub struct VersionCmd {}
 
 /// Resolves which harnesses an install/uninstall run targets: `--claude`/`--codex`
 /// pick explicitly, otherwise falls back to `detected`. `--local` has no Codex
@@ -187,6 +193,10 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
             print!("{}", crate::commands::run_list_presets());
             Ok(0)
         }
+        Sub::Version(_) => {
+            println!("skillforcer {}", env!("CARGO_PKG_VERSION"));
+            Ok(0)
+        }
         Sub::Install(c) => {
             let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
             let exe = hook_exe_name();
@@ -267,6 +277,12 @@ mod tests {
     fn parses_hook_subcommand() {
         let cli = Cli::from_args(&["skillforcer"], &["hook"]).unwrap();
         assert!(matches!(cli.sub, Sub::Hook(_)));
+    }
+
+    #[test]
+    fn parses_version_subcommand() {
+        let cli = Cli::from_args(&["skillforcer"], &["version"]).unwrap();
+        assert!(matches!(cli.sub, Sub::Version(_)));
     }
 
     #[test]
