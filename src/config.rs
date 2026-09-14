@@ -155,35 +155,54 @@ fn convert_rule(r: RawRule) -> Result<RuleDef> {
     })
 }
 
-pub fn parse_str(project_toml: &str, global_toml: Option<&str>) -> Result<Config> {
-    let global: RawConfig = match global_toml {
-        Some(t) => toml::from_str(t).context("parsing global config")?,
-        None => RawConfig::default(),
-    };
+fn parse_layer(toml_str: Option<&str>, label: &str) -> Result<RawConfig> {
+    match toml_str {
+        Some(t) => toml::from_str(t).with_context(|| format!("parsing {label} config")),
+        None => Ok(RawConfig::default()),
+    }
+}
+
+pub fn parse_str(
+    project_toml: &str,
+    global_toml: Option<&str>,
+    local_toml: Option<&str>,
+) -> Result<Config> {
+    let global = parse_layer(global_toml, "global")?;
     let project: RawConfig = toml::from_str(project_toml).context("parsing project config")?;
+    let local = parse_layer(local_toml, "local")?;
 
     let defaults = Defaults {
-        fail_open: project
+        fail_open: local
             .defaults
             .fail_open
+            .or(project.defaults.fail_open)
             .or(global.defaults.fail_open)
             .unwrap_or(true),
-        combine_freshness: project
+        combine_freshness: local
             .defaults
             .combine_freshness
+            .or(project.defaults.combine_freshness)
             .or(global.defaults.combine_freshness)
             .unwrap_or_default(),
     };
 
     let mut rules: Vec<RuleDef> = Vec::new();
-    for raw in global.rules.into_iter().chain(project.rules) {
+    for raw in global
+        .rules
+        .into_iter()
+        .chain(project.rules)
+        .chain(local.rules)
+    {
         let converted = convert_rule(raw)?;
         if let Some(existing) = rules.iter_mut().find(|x| x.name == converted.name) {
-            *existing = converted; // project (later) wins on same name
+            *existing = converted; // later layer wins on same name
         } else {
             rules.push(converted);
         }
     }
+    // Drop tombstones after all layers merge, so a disabled stanza in any layer
+    // removes the inherited rule of that name.
+    rules.retain(|r| r.enabled);
     Ok(Config { defaults, rules })
 }
 
@@ -194,7 +213,7 @@ pub fn load(project_dir: &Path, global_path: Option<&Path>) -> Result<Config> {
         Err(_) => return Ok(Config::default()),
     };
     let global_toml = global_path.and_then(|p| std::fs::read_to_string(p).ok());
-    parse_str(&project_toml, global_toml.as_deref())
+    parse_str(&project_toml, global_toml.as_deref(), None)
 }
 
 pub fn resolve_extends(rule: &RuleDef) -> Result<RuleDef> {
@@ -235,7 +254,7 @@ mod tests {
 
     #[test]
     fn parses_rule_and_requires() {
-        let cfg = parse_str(SAMPLE, None).unwrap();
+        let cfg = parse_str(SAMPLE, None, None).unwrap();
         assert!(!cfg.defaults.fail_open);
         assert_eq!(cfg.rules.len(), 1);
         let r = &cfg.rules[0];
@@ -249,7 +268,7 @@ mod tests {
         let bad = r#"[[rule]]
             name = "x"
             requires = { any_skill = ["a"], all_skills = ["b"], session = true }"#;
-        assert!(parse_str(bad, None).is_err());
+        assert!(parse_str(bad, None, None).is_err());
     }
 
     #[test]
@@ -257,7 +276,7 @@ mod tests {
         let bad = r#"[[rule]]
             name = "x"
             requires = { any_skill = ["a"] }"#;
-        assert!(parse_str(bad, None).is_err());
+        assert!(parse_str(bad, None, None).is_err());
     }
 
     #[test]
@@ -266,7 +285,7 @@ mod tests {
             fail_open = true"#;
         let project = r#"[defaults]
             fail_open = false"#;
-        let cfg = parse_str(project, Some(global)).unwrap();
+        let cfg = parse_str(project, Some(global), None).unwrap();
         assert!(!cfg.defaults.fail_open);
     }
 
@@ -275,7 +294,7 @@ mod tests {
         let bad = r#"[[rule]]
             name = "x"
             requires = { session = true }"#;
-        assert!(parse_str(bad, None).is_err());
+        assert!(parse_str(bad, None, None).is_err());
     }
 
     #[test]
@@ -286,7 +305,7 @@ mod tests {
         let project = r#"[[rule]]
             name = "dup"
             requires = { any_skill = ["p"], session = true }"#;
-        let cfg = parse_str(project, Some(global)).unwrap();
+        let cfg = parse_str(project, Some(global), None).unwrap();
         assert_eq!(cfg.rules.len(), 1);
         assert!(matches!(cfg.rules[0].requires.skills, SkillSet::Any(_)));
     }
@@ -317,8 +336,69 @@ mod tests {
 
     #[test]
     fn enabled_defaults_true() {
-        let cfg = parse_str(SAMPLE, None).unwrap();
+        let cfg = parse_str(SAMPLE, None, None).unwrap();
         assert!(cfg.rules[0].enabled);
+    }
+
+    #[test]
+    fn local_overrides_project_defaults() {
+        let project = r#"[defaults]
+            fail_open = true"#;
+        let local = r#"[defaults]
+            fail_open = false"#;
+        let cfg = parse_str(project, None, Some(local)).unwrap();
+        assert!(!cfg.defaults.fail_open);
+    }
+
+    #[test]
+    fn local_disables_inherited_project_rule() {
+        let project = r#"[[rule]]
+            name = "comments"
+            requires = { any_skill = ["a"], session = true }"#;
+        let local = r#"[[rule]]
+            name = "comments"
+            enabled = false"#;
+        let cfg = parse_str(project, None, Some(local)).unwrap();
+        assert!(cfg.rules.is_empty(), "disabled rule should be dropped");
+    }
+
+    #[test]
+    fn local_rule_replaces_same_named_project_rule() {
+        let project = r#"[[rule]]
+            name = "dup"
+            requires = { all_skills = ["p"], session = true }"#;
+        let local = r#"[[rule]]
+            name = "dup"
+            requires = { any_skill = ["l"], session = true }"#;
+        let cfg = parse_str(project, None, Some(local)).unwrap();
+        assert_eq!(cfg.rules.len(), 1);
+        assert!(matches!(&cfg.rules[0].requires.skills, SkillSet::Any(v) if v == &["l"]));
+    }
+
+    #[test]
+    fn local_adds_new_rule() {
+        let project = r#"[[rule]]
+            name = "a"
+            requires = { any_skill = ["x"], session = true }"#;
+        let local = r#"[[rule]]
+            name = "b"
+            requires = { any_skill = ["y"], session = true }"#;
+        let cfg = parse_str(project, None, Some(local)).unwrap();
+        assert_eq!(cfg.rules.len(), 2);
+    }
+
+    #[test]
+    fn precedence_global_project_local() {
+        let global = r#"[defaults]
+            fail_open = true
+            combine_freshness = "all""#;
+        let project = r#"[defaults]
+            combine_freshness = "any""#;
+        let local = r#"[defaults]
+            fail_open = false"#;
+        let cfg = parse_str(project, Some(global), Some(local)).unwrap();
+        assert!(!cfg.defaults.fail_open); // from local
+        assert_eq!(cfg.defaults.combine_freshness, Combine::Any); // from project (global had "all")
     }
 }
 
