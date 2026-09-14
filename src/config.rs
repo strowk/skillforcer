@@ -436,6 +436,21 @@ mod tests {
         assert!(cfg.rules.is_empty());
         assert!(cfg.defaults.fail_open);
     }
+
+    #[test]
+    fn load_applies_local_only_without_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".skillforcer.local.toml"),
+            r#"[[rule]]
+        name = "local-only"
+        requires = { any_skill = ["a"], session = true }"#,
+        )
+        .unwrap();
+        let cfg = load(dir.path(), None).unwrap();
+        assert_eq!(cfg.rules.len(), 1);
+        assert_eq!(cfg.rules[0].name, "local-only");
+    }
 }
 
 #[cfg(test)]
