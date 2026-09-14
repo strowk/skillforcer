@@ -47,6 +47,7 @@ impl Default for Defaults {
 #[derive(Debug, Clone)]
 pub struct RuleDef {
     pub name: String,
+    pub enabled: bool,
     pub extends: Vec<String>,
     pub path: Vec<String>,
     pub content: Option<String>,
@@ -81,8 +82,9 @@ struct RawRule {
     #[serde(default)]
     path: Vec<String>,
     content: Option<String>,
-    requires: RawRequires,
+    requires: Option<RawRequires>,
     message: Option<String>,
+    enabled: Option<bool>,
 }
 #[derive(Debug, Deserialize)]
 struct RawRequires {
@@ -96,17 +98,41 @@ struct RawRequires {
 }
 
 fn convert_rule(r: RawRule) -> Result<RuleDef> {
-    let skills = match (r.requires.any_skill, r.requires.all_skills) {
+    let enabled = r.enabled.unwrap_or(true);
+
+    // A disabled rule is a tombstone: it only carries a name (plus whatever
+    // else was written) and overrides its same-named inherited rule. It never
+    // runs, so it skips skill/window validation and gets a placeholder Requires.
+    if !enabled {
+        return Ok(RuleDef {
+            name: r.name,
+            enabled: false,
+            extends: r.extends,
+            path: r.path,
+            content: r.content,
+            requires: Requires {
+                skills: SkillSet::Any(Vec::new()),
+                windows: Windows::default(),
+            },
+            message: r.message,
+        });
+    }
+
+    let req = r
+        .requires
+        .ok_or_else(|| anyhow::anyhow!("rule '{}': requires is required", r.name))?;
+
+    let skills = match (req.any_skill, req.all_skills) {
         (Some(_), Some(_)) => bail!("rule '{}': set only one of any_skill/all_skills", r.name),
         (Some(a), None) => SkillSet::Any(a),
         (None, Some(a)) => SkillSet::All(a),
         (None, None) => bail!("rule '{}': one of any_skill/all_skills is required", r.name),
     };
     let windows = Windows {
-        session: r.requires.session,
-        minutes: r.requires.minutes,
-        turns: r.requires.turns,
-        tokens: r.requires.tokens,
+        session: req.session,
+        minutes: req.minutes,
+        turns: req.turns,
+        tokens: req.tokens,
     };
     if !windows.session
         && windows.minutes.is_none()
@@ -120,6 +146,7 @@ fn convert_rule(r: RawRule) -> Result<RuleDef> {
     }
     Ok(RuleDef {
         name: r.name,
+        enabled: true,
         extends: r.extends,
         path: r.path,
         content: r.content,
@@ -263,6 +290,36 @@ mod tests {
         assert_eq!(cfg.rules.len(), 1);
         assert!(matches!(cfg.rules[0].requires.skills, SkillSet::Any(_)));
     }
+
+    #[test]
+    fn disabled_rule_converts_without_requires() {
+        // A pure-disable stanza needs only a name; validation is skipped.
+        let raw: RawConfig = toml::from_str(
+            r#"[[rule]]
+            name = "x"
+            enabled = false"#,
+        )
+        .unwrap();
+        let rule = convert_rule(raw.rules.into_iter().next().unwrap()).unwrap();
+        assert_eq!(rule.name, "x");
+        assert!(!rule.enabled);
+    }
+
+    #[test]
+    fn enabled_rule_missing_requires_still_errors() {
+        let raw: RawConfig = toml::from_str(
+            r#"[[rule]]
+            name = "x""#,
+        )
+        .unwrap();
+        assert!(convert_rule(raw.rules.into_iter().next().unwrap()).is_err());
+    }
+
+    #[test]
+    fn enabled_defaults_true() {
+        let cfg = parse_str(SAMPLE, None).unwrap();
+        assert!(cfg.rules[0].enabled);
+    }
 }
 
 #[cfg(test)]
@@ -272,6 +329,7 @@ mod extends_tests {
     fn extends_fills_content_from_preset() {
         let rule = RuleDef {
             name: "c".into(),
+            enabled: true,
             extends: vec!["code-comments".into()],
             path: vec!["src/**/*.rs".into()],
             content: None,
@@ -292,6 +350,7 @@ mod extends_tests {
     fn unknown_preset_errors() {
         let rule = RuleDef {
             name: "c".into(),
+            enabled: true,
             extends: vec!["nope".into()],
             path: vec![],
             content: Some("x".into()),

@@ -60,6 +60,7 @@ mod tests {
     fn rule(path: Vec<&str>, content: Option<&str>) -> RuleDef {
         RuleDef {
             name: "t".into(),
+            enabled: true,
             extends: vec![],
             path: path.into_iter().map(String::from).collect(),
             content: content.map(String::from),

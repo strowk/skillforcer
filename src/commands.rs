@@ -441,6 +441,7 @@ mod tests {
     fn codex_default_message_names_dollar_invocation() {
         let rule = crate::config::RuleDef {
             name: "r".into(),
+            enabled: true,
             extends: vec![],
             path: vec![],
             content: None,
