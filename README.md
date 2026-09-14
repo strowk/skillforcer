@@ -186,6 +186,19 @@ With `combine_freshness = "all"` (the default), every window on the rule must pa
 
 Reference one from `extends` instead of copying its `path`/`content` into every rule.
 
+### Personal overrides
+
+`.skillforcer.local.toml`, same schema as `.skillforcer.toml`, is an optional
+per-developer layer with the highest precedence (global → project → local); `install`
+adds it to `.gitignore` so it never gets committed. Set `enabled = false` on a rule there
+to silence one inherited from the project or global config:
+
+```toml
+[[rule]]
+name = "comments-need-tech-writing"
+enabled = false
+```
+
 ## Debugging
 
 - `skillforcer check <file> [--stdin]` - reports which rules match a file (and its

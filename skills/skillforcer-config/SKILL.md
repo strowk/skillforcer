@@ -83,6 +83,11 @@ A project rule and a global rule (`~/.config/skillforcer/config.toml`, or the
 platform-equivalent config dir) with the same `name` do not merge — the project rule
 replaces the global one entirely.
 
+A personal `.skillforcer.local.toml` (git-ignored, added by `install`) layers over
+`.skillforcer.toml` with the same schema and highest precedence (global → project →
+local). Set `enabled = false` on a rule there to silence one inherited from the project
+or global config.
+
 ## Freshness windows
 
 | Key | Satisfied when |
