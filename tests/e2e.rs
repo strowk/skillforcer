@@ -72,6 +72,58 @@ fn hook_denies_uncovered_comment_write() {
 }
 
 #[test]
+fn local_disable_allows_write() {
+    let proj = tempfile::tempdir().unwrap();
+    // Project rule would deny a comment write with no skill loaded.
+    std::fs::write(
+        proj.path().join(".skillforcer.toml"),
+        r#"[defaults]
+        fail_open = false
+        [[rule]]
+        name = "comments"
+        path = ["**/*.rs"]
+        content = "//"
+        requires = { any_skill = ["tech-writing"], session = true }
+        message = "Load {skills} first""#,
+    )
+    .unwrap();
+    // Local file disables it.
+    std::fs::write(
+        proj.path().join(".skillforcer.local.toml"),
+        r#"[[rule]]
+        name = "comments"
+        enabled = false"#,
+    )
+    .unwrap();
+    std::fs::write(proj.path().join("t.jsonl"), "").unwrap();
+
+    let esc = |p: &std::path::Path| p.display().to_string().replace('\\', "\\\\");
+    let hook = format!(
+        r#"{{"hook_event_name":"PreToolUse","session_id":"s","transcript_path":"{}","cwd":"{}","tool_name":"Write","tool_input":{{"file_path":"src/a.rs","content":"// hi"}}}}"#,
+        esc(&proj.path().join("t.jsonl")),
+        esc(proj.path()),
+    );
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_skillforcer"))
+        .arg("hook")
+        .current_dir(proj.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(hook.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    // No matching rule remains → allow → empty stdout (no deny JSON).
+    assert!(!stdout.contains("deny"), "expected allow, got: {stdout}");
+}
+
+#[test]
 fn codex_hook_deny_then_allow_after_skill_read() {
     let proj = tempfile::tempdir().unwrap();
     std::fs::write(
