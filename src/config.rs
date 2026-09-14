@@ -207,13 +207,20 @@ pub fn parse_str(
 }
 
 pub fn load(project_dir: &Path, global_path: Option<&Path>) -> Result<Config> {
-    let proj_path = project_dir.join(".skillforcer.toml");
-    let project_toml = match std::fs::read_to_string(&proj_path) {
-        Ok(s) => s,
-        Err(_) => return Ok(Config::default()),
-    };
+    let project_toml = std::fs::read_to_string(project_dir.join(".skillforcer.toml")).ok();
+    let local_toml = std::fs::read_to_string(project_dir.join(".skillforcer.local.toml")).ok();
+
+    // Opt-in: with neither a project nor a local config, do nothing.
+    if project_toml.is_none() && local_toml.is_none() {
+        return Ok(Config::default());
+    }
+
     let global_toml = global_path.and_then(|p| std::fs::read_to_string(p).ok());
-    parse_str(&project_toml, global_toml.as_deref(), None)
+    parse_str(
+        project_toml.as_deref().unwrap_or(""),
+        global_toml.as_deref(),
+        local_toml.as_deref(),
+    )
 }
 
 pub fn resolve_extends(rule: &RuleDef) -> Result<RuleDef> {
@@ -399,6 +406,35 @@ mod tests {
         let cfg = parse_str(project, Some(global), Some(local)).unwrap();
         assert!(!cfg.defaults.fail_open); // from local
         assert_eq!(cfg.defaults.combine_freshness, Combine::Any); // from project (global had "all")
+    }
+
+    #[test]
+    fn load_applies_local_over_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".skillforcer.toml"),
+            r#"[[rule]]
+        name = "comments"
+        requires = { any_skill = ["a"], session = true }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(".skillforcer.local.toml"),
+            r#"[[rule]]
+        name = "comments"
+        enabled = false"#,
+        )
+        .unwrap();
+        let cfg = load(dir.path(), None).unwrap();
+        assert!(cfg.rules.is_empty());
+    }
+
+    #[test]
+    fn load_no_config_files_is_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = load(dir.path(), None).unwrap();
+        assert!(cfg.rules.is_empty());
+        assert!(cfg.defaults.fail_open);
     }
 }
 
