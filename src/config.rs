@@ -409,6 +409,20 @@ mod tests {
     }
 
     #[test]
+    fn higher_layer_reenables_lower_layer_tombstone() {
+        let global = r#"[[rule]]
+            name = "dup"
+            enabled = false"#;
+        let project = r#"[[rule]]
+            name = "dup"
+            requires = { any_skill = ["p"], session = true }"#;
+        let cfg = parse_str(project, Some(global), None).unwrap();
+        assert_eq!(cfg.rules.len(), 1);
+        assert_eq!(cfg.rules[0].name, "dup");
+        assert!(cfg.rules[0].enabled);
+    }
+
+    #[test]
     fn load_applies_local_over_project() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
