@@ -366,4 +366,17 @@ mod tests {
         assert!(body.contains("/target"));
         assert!(body.contains(".skillforcer.local.toml"));
     }
+
+    #[test]
+    fn ensure_gitignored_appends_when_no_trailing_newline() {
+        let proj = tempfile::tempdir().unwrap();
+        std::fs::write(proj.path().join(".gitignore"), "/target").unwrap(); // no trailing \n
+        assert!(ensure_gitignored(proj.path()).unwrap());
+        let body = std::fs::read_to_string(proj.path().join(".gitignore")).unwrap();
+        let lines: Vec<&str> = body.lines().collect();
+        assert!(lines.contains(&"/target"));
+        assert!(lines.contains(&".skillforcer.local.toml"));
+        // the two entries must be on separate lines
+        assert!(!body.contains("/target.skillforcer.local.toml"));
+    }
 }
