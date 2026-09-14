@@ -40,25 +40,31 @@ Add the `enabled` field to the rule types and teach `convert_rule` to treat a di
 
 Add to the in-module `tests` module in `src/config.rs`:
 
+These test `convert_rule` directly (accessible in-module) rather than through `parse_str`, so they stay valid after Task 2 adds the `retain` that drops disabled rules from `parse_str` output.
+
 ```rust
 #[test]
-fn disabled_rule_parses_without_requires() {
+fn disabled_rule_converts_without_requires() {
     // A pure-disable stanza needs only a name; validation is skipped.
-    let toml = r#"[[rule]]
+    let raw: RawConfig = toml::from_str(
+        r#"[[rule]]
         name = "x"
-        enabled = false"#;
-    let cfg = parse_str(toml, None).unwrap();
-    // Not yet filtered in this task — it is present but marked disabled.
-    assert_eq!(cfg.rules.len(), 1);
-    assert_eq!(cfg.rules[0].name, "x");
-    assert!(!cfg.rules[0].enabled);
+        enabled = false"#,
+    )
+    .unwrap();
+    let rule = convert_rule(raw.rules.into_iter().next().unwrap()).unwrap();
+    assert_eq!(rule.name, "x");
+    assert!(!rule.enabled);
 }
 
 #[test]
 fn enabled_rule_missing_requires_still_errors() {
-    let toml = r#"[[rule]]
-        name = "x""#;
-    assert!(parse_str(toml, None).is_err());
+    let raw: RawConfig = toml::from_str(
+        r#"[[rule]]
+        name = "x""#,
+    )
+    .unwrap();
+    assert!(convert_rule(raw.rules.into_iter().next().unwrap()).is_err());
 }
 
 #[test]
@@ -70,7 +76,7 @@ fn enabled_defaults_true() {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo test --lib config::tests::disabled_rule_parses_without_requires config::tests::enabled_rule_missing_requires_still_errors config::tests::enabled_defaults_true`
+Run: `cargo test --lib config::tests::disabled_rule_converts_without_requires config::tests::enabled_rule_missing_requires_still_errors config::tests::enabled_defaults_true`
 Expected: FAIL to compile (`enabled` field missing; `requires` not optional).
 
 - [ ] **Step 3: Add `enabled` to `RuleDef`**
