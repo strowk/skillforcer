@@ -8,6 +8,8 @@ pub const POST_MATCHER: &str = "Skill";
 pub const PRE_MATCHER_CODEX: &str = "apply_patch|Edit|Write|Bash";
 pub const POST_MATCHER_CODEX: &str = "Bash|apply_patch";
 
+pub const LOCAL_CONFIG_NAME: &str = ".skillforcer.local.toml";
+
 pub const CODEX_TRUST_NOTE: &str = "\
 IMPORTANT: Codex requires hooks to be trusted before they run.\n\
 Open Codex and run /hooks to review and approve the skillforcer hook.\n\
@@ -204,6 +206,25 @@ pub fn scaffold_config(project_dir: &Path) -> Result<bool> {
     Ok(true)
 }
 
+/// Ensure the personal `.skillforcer.local.toml` is git-ignored. Creates
+/// `.gitignore` if absent, appends the entry only when missing. Idempotent;
+/// returns true if it added the entry.
+pub fn ensure_gitignored(project_dir: &Path) -> Result<bool> {
+    let path = project_dir.join(".gitignore");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    if existing.lines().any(|l| l.trim() == LOCAL_CONFIG_NAME) {
+        return Ok(false);
+    }
+    let mut out = existing;
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out.push_str(LOCAL_CONFIG_NAME);
+    out.push('\n');
+    std::fs::write(&path, out)?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +343,27 @@ mod tests {
         uninstall(Target::Project, proj.path(), Harness::Codex).unwrap();
         let after = std::fs::read_to_string(proj.path().join(".codex").join("hooks.json")).unwrap();
         assert!(!after.contains("skillforcer"));
+    }
+
+    #[test]
+    fn ensure_gitignored_creates_and_is_idempotent() {
+        let proj = tempfile::tempdir().unwrap();
+        assert!(ensure_gitignored(proj.path()).unwrap());
+        assert!(!ensure_gitignored(proj.path()).unwrap());
+        let body = std::fs::read_to_string(proj.path().join(".gitignore")).unwrap();
+        assert_eq!(
+            body.lines().filter(|l| l.trim() == ".skillforcer.local.toml").count(),
+            1
+        );
+    }
+
+    #[test]
+    fn ensure_gitignored_appends_to_existing() {
+        let proj = tempfile::tempdir().unwrap();
+        std::fs::write(proj.path().join(".gitignore"), "/target\n").unwrap();
+        assert!(ensure_gitignored(proj.path()).unwrap());
+        let body = std::fs::read_to_string(proj.path().join(".gitignore")).unwrap();
+        assert!(body.contains("/target"));
+        assert!(body.contains(".skillforcer.local.toml"));
     }
 }

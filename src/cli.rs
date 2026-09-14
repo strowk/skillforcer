@@ -230,6 +230,9 @@ pub fn dispatch(cli: Cli) -> anyhow::Result<i32> {
                         ".skillforcer.toml already present"
                     }
                 );
+                if crate::install::ensure_gitignored(&cwd)? {
+                    println!("added {} to .gitignore", crate::install::LOCAL_CONFIG_NAME);
+                }
             }
             Ok(0)
         }
