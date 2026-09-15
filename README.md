@@ -179,12 +179,31 @@ With `combine_freshness = "all"` (the default), every window on the rule must pa
 
 ### Presets
 
-`skillforcer list-presets` prints the bundled presets and the glob paths each covers:
+A preset is a named `path` + `content` pair. Reference it from `extends` instead of
+copying the globs and regex into every rule; `skillforcer list-presets` prints them.
 
-- `code-comments` - comment syntax across common languages (`//`, `/* */`, `<!--`, `#`, `;;`)
-- `markdown-headings` - Markdown ATX headings (`#` through `######`)
+`code-comments` - comment syntax across common languages (`//`, `/* */`, `<!--`, `#`,
+`;;`). `extends` pulls in:
 
-Reference one from `extends` instead of copying its `path`/`content` into every rule.
+```toml
+path = ["**/*.rs", "**/*.ts", "**/*.js", "**/*.go", "**/*.py", "**/*.c", "**/*.h", "**/*.cpp", "**/*.java"]
+content = '(//|/\*|\*/|<!--|(^|\s)#|(^|\s);;)'
+```
+
+`markdown-headings` - Markdown ATX headings (`#` through `######`). `extends` pulls in:
+
+```toml
+path = ["**/*.md"]
+content = '(?m)^#{1,6}\s'
+```
+
+The two fields merge oppositely when a rule sets its own alongside `extends`:
+
+- `path` is a **union** - the preset's globs are added to the rule's, both apply. A rule
+  that extends `code-comments` and sets `path = ["docs/**"]` matches the nine globs above
+  *and* `docs/**`; the rule's `path` does not replace the preset's.
+- `content` is an **override** - the preset's regex applies only when the rule sets no
+  `content`. Set your own and it wins; the preset's is ignored.
 
 ### Personal overrides
 
