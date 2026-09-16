@@ -1,0 +1,12 @@
+{
+  "name": "skillforcer",
+  "owner": { "name": "strowk", "url": "https://github.com/strowk" },
+  "plugins": [
+    {
+      "name": "skillforcer",
+      "source": "./",
+      "description": "Guidance for configuring skillforcer, which forces skills to load before governed writes.",
+      "version": "0.3.0"
+    }
+  ]
+}
