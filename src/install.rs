@@ -352,7 +352,9 @@ mod tests {
         assert!(!ensure_gitignored(proj.path()).unwrap());
         let body = std::fs::read_to_string(proj.path().join(".gitignore")).unwrap();
         assert_eq!(
-            body.lines().filter(|l| l.trim() == ".skillforcer.local.toml").count(),
+            body.lines()
+                .filter(|l| l.trim() == ".skillforcer.local.toml")
+                .count(),
             1
         );
     }
