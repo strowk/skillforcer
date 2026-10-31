@@ -1,7 +1,7 @@
 use crate::model::{Decision, WriteEvent};
 use serde::Deserialize;
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn render_decision(d: &Decision) -> Option<serde_json::Value> {
     match d {
@@ -29,6 +29,12 @@ struct RawHook {
     tool_name: String,
     #[serde(default)]
     tool_input: serde_json::Value,
+    /// Present only inside a subagent context; absent/empty on root events.
+    #[serde(default)]
+    agent_id: String,
+    /// The subagent's agent type (its definition name); empty on root events.
+    #[serde(default)]
+    agent_type: String,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +44,10 @@ pub struct PreToolUse {
     pub cwd: PathBuf,
     pub tool_name: String,
     pub tool_input: serde_json::Value,
+    /// Empty for a root session; set to the subagent instance id otherwise.
+    pub agent_id: String,
+    /// Empty for a root session; the subagent's agent type otherwise.
+    pub agent_type: String,
 }
 
 pub type PostToolUse = PreToolUse;
@@ -57,12 +67,48 @@ pub fn parse_hook_input(raw: &str) -> anyhow::Result<HookInput> {
         cwd: PathBuf::from(h.cwd),
         tool_name: h.tool_name,
         tool_input: h.tool_input,
+        agent_id: h.agent_id,
+        agent_type: h.agent_type,
     };
     Ok(match h.hook_event_name.as_str() {
         "PreToolUse" => HookInput::PreToolUse(common),
         "PostToolUse" => HookInput::PostToolUse(common),
         _ => HookInput::Other,
     })
+}
+
+/// Identifies one context window — the unit skillforcer keys its state by.
+///
+/// A root session and every subagent it spawns share one `session_id` but run
+/// in separate context windows, so a skill loaded in one is never in another.
+/// The context key separates them: the root keeps the bare `session_id` (so
+/// existing state files keep matching), and each subagent instance gets its own
+/// `{session_id}--agent-{agent_id}` key. The store's filename sanitizer maps any
+/// stray character to `_`, so the result is always a safe stem.
+pub fn context_key(session_id: &str, agent_id: &str) -> String {
+    if agent_id.is_empty() {
+        session_id.to_string()
+    } else {
+        format!("{session_id}--agent-{agent_id}")
+    }
+}
+
+/// Resolves the transcript a context actually owns.
+///
+/// A subagent's `PreToolUse`/`PostToolUse` payload hands over the *root*
+/// transcript path, but the subagent's own turns and skill loads live in a
+/// separate file. The convention (verified on disk, undocumented) is
+/// `<transcript without .jsonl>/subagents/agent-<agent_id>.jsonl`. The root
+/// context (empty `agent_id`) uses the payload path unchanged.
+pub fn context_transcript_path(transcript_path: &Path, agent_id: &str) -> PathBuf {
+    if agent_id.is_empty() {
+        transcript_path.to_path_buf()
+    } else {
+        transcript_path
+            .with_extension("")
+            .join("subagents")
+            .join(format!("agent-{agent_id}.jsonl"))
+    }
 }
 
 pub fn skill_from_tool(tool_name: &str, input: &serde_json::Value) -> Option<String> {
@@ -171,6 +217,46 @@ mod parse_tests {
         assert_eq!(
             skill_from_tool(&p.tool_name, &p.tool_input).unwrap(),
             "tech-writing:technical-writing"
+        );
+    }
+
+    #[test]
+    fn parses_agent_id_and_type_from_subagent_payload() {
+        let raw = include_str!("../../tests/fixtures/pre_write_subagent.json");
+        let HookInput::PreToolUse(p) = parse_hook_input(raw).unwrap() else {
+            panic!()
+        };
+        assert_eq!(p.agent_id, "a1b2");
+        assert_eq!(p.agent_type, "general-purpose");
+    }
+}
+
+#[cfg(test)]
+mod context_tests {
+    use super::*;
+
+    #[test]
+    fn root_context_key_is_session_id() {
+        assert_eq!(context_key("sess-1", ""), "sess-1");
+    }
+
+    #[test]
+    fn subagent_context_key_combines_session_and_agent() {
+        assert_eq!(context_key("sess-1", "a1b2"), "sess-1--agent-a1b2");
+    }
+
+    #[test]
+    fn root_transcript_path_is_unchanged() {
+        let p = Path::new("/home/.claude/projects/proj/sess.jsonl");
+        assert_eq!(context_transcript_path(p, ""), p);
+    }
+
+    #[test]
+    fn subagent_transcript_path_is_derived() {
+        let p = Path::new("/home/.claude/projects/proj/sess.jsonl");
+        assert_eq!(
+            context_transcript_path(p, "a1b2"),
+            Path::new("/home/.claude/projects/proj/sess/subagents/agent-a1b2.jsonl")
         );
     }
 }
