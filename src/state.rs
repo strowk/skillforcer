@@ -30,8 +30,11 @@ impl Store {
         Ok(Self { base })
     }
 
-    fn path_for(&self, session_id: &str) -> PathBuf {
-        let safe: String = session_id
+    /// Maps an opaque context key (a root `session_id` or a
+    /// `{session_id}--agent-{agent_id}` subagent key) to its state file,
+    /// sanitizing any character outside `[A-Za-z0-9_-]` to `_` for a safe stem.
+    fn path_for(&self, key: &str) -> PathBuf {
+        let safe: String = key
             .chars()
             .map(|c| {
                 if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
@@ -44,13 +47,13 @@ impl Store {
         self.base.join(format!("{safe}.json"))
     }
 
-    pub fn load(&self, session_id: &str) -> SessionState {
-        let path = self.path_for(session_id);
+    pub fn load(&self, key: &str) -> SessionState {
+        let path = self.path_for(key);
         std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str::<SessionState>(&s).ok())
             .unwrap_or(SessionState {
-                session_id: session_id.to_string(),
+                session_id: key.to_string(),
                 loads: Vec::new(),
                 cursor: Cursor::default(),
             })

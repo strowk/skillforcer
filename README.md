@@ -46,6 +46,24 @@ rollout.
   <img alt="skillforcer decision loop: the PreToolUse guard matches each write against .skillforcer.toml rules (path globs, content regex) and checks the required skill's freshness against session state (writes no rule matches pass through unchecked); a fresh skill lets the write through, a stale one is denied with a reason, the agent loads the skill (recorded by the PostToolUse hook) and the retried write passes" src="docs/flow-light.svg" width="880">
 </picture>
 
+### Subagents (Claude Code)
+
+A Claude Code root session and every subagent it spawns share one session id but
+run in separate context windows, so a skill loaded in one is never loaded in
+another. skillforcer therefore tracks freshness *per context window*, not per
+session: a load counts only for the context that loaded it. A subagent's load
+never credits the root or a sibling, and the root's load never credits a
+subagent - each must load the required skill in its own context before a
+governed write passes.
+
+So a subagent is never deadlocked, skillforcer only enforces where it can
+confirm the subagent can load skills: the root session, and subagents whose
+agent definition grants the `Skill` tool (from `.claude/agents/`, `~/.claude/agents/`,
+or the built-in defaults). A subagent whose definition omits `Skill` - a
+deliberate signal that it should not load skills - is exempt, as is any agent
+skillforcer cannot resolve. Consistent with its fail-open design, uncertainty
+always allows the write.
+
 ## Install
 
 The install scripts download a prebuilt release binary for your platform.

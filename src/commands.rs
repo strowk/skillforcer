@@ -1,3 +1,4 @@
+use crate::adapter::agents;
 use crate::adapter::claude::{self, HookInput};
 use crate::config::{self, Config, RuleDef, SkillSet};
 use crate::freshness;
@@ -64,8 +65,10 @@ pub fn run_hook(
                 ),
             };
             if !skills.is_empty() {
-                let mut st = store.load(&p.session_id);
-                refresh_state(&mut st, &p.transcript_path, harness);
+                let key = claude::context_key(&p.session_id, &p.agent_id);
+                let transcript = claude::context_transcript_path(&p.transcript_path, &p.agent_id);
+                let mut st = store.load(&key);
+                refresh_state(&mut st, &transcript, harness);
                 // record the just-loaded skill(s) at the current cursor position
                 for skill in skills {
                     st.loads.push(crate::model::SkillLoad {
@@ -98,6 +101,21 @@ pub fn run_hook(
             } else {
                 p.cwd.clone()
             };
+
+            // Per-context enforcement gate (§3.3). Re-keying means a subagent
+            // starts with an empty record, so its first governed write is denied
+            // until it loads the skill in its own context — a deadlock for a
+            // subagent that lacks the `Skill` tool. Enforce only for the root
+            // (empty `agent_id`, which includes every Codex hook) and for
+            // subagents positively confirmed to have the `Skill` tool;
+            // everything uncertain passes without evaluating any rule.
+            if !p.agent_id.is_empty() {
+                let dirs = agents::default_dirs(&proj);
+                if !agents::resolve(&p.agent_type, &dirs).should_enforce() {
+                    return Decision::Allow;
+                }
+            }
+
             let cfg: Config = match config::load(&proj, global_path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -108,8 +126,10 @@ pub fn run_hook(
             let fail_open = cfg.defaults.fail_open;
             let combine = cfg.defaults.combine_freshness;
 
-            let mut st = store.load(&p.session_id);
-            refresh_state(&mut st, &p.transcript_path, harness);
+            let key = claude::context_key(&p.session_id, &p.agent_id);
+            let transcript = claude::context_transcript_path(&p.transcript_path, &p.agent_id);
+            let mut st = store.load(&key);
+            refresh_state(&mut st, &transcript, harness);
             let _ = store.save(&st);
             store.prune(std::time::Duration::from_secs(60 * 60 * 24 * 7));
 
@@ -360,6 +380,278 @@ mod tests {
                 None,
                 Harness::Claude
             ),
+            Decision::Allow
+        ));
+    }
+
+    /// Builds a hook JSON payload, including `agent_id`/`agent_type` when
+    /// `agent_id` is non-empty (a subagent context).
+    #[allow(clippy::too_many_arguments)]
+    fn hook_json(
+        event: &str,
+        session: &str,
+        agent_id: &str,
+        agent_type: &str,
+        transcript: &std::path::Path,
+        proj: &std::path::Path,
+        tool_name: &str,
+        tool_input: &str,
+    ) -> String {
+        let esc = |p: &std::path::Path| p.display().to_string().replace('\\', "\\\\");
+        let agent_fields = if agent_id.is_empty() {
+            String::new()
+        } else {
+            format!(r#","agent_id":"{agent_id}","agent_type":"{agent_type}""#)
+        };
+        format!(
+            r#"{{"hook_event_name":"{event}","session_id":"{session}"{agent_fields},"transcript_path":"{}","cwd":"{}","tool_name":"{tool_name}","tool_input":{tool_input}}}"#,
+            esc(transcript),
+            esc(proj),
+        )
+    }
+
+    const WRITE_INPUT: &str = r#"{"file_path":"src/a.rs","content":"// hi"}"#;
+    const SKILL_INPUT: &str = r#"{"skill":"tech-writing"}"#;
+
+    fn setup() -> (
+        tempfile::TempDir,
+        std::path::PathBuf,
+        Store,
+        tempfile::TempDir,
+    ) {
+        let proj = tempfile::tempdir().unwrap();
+        write_file(proj.path(), ".skillforcer.toml", CFG);
+        let transcript = write_file(proj.path(), "t.jsonl", "");
+        let statedir = tempfile::tempdir().unwrap();
+        let store = Store::with_base(statedir.path().to_path_buf());
+        (proj, transcript, store, statedir)
+    }
+
+    #[test]
+    fn subagent_with_skill_tool_is_enforced() {
+        let (proj, transcript, store, _sd) = setup();
+        // `general-purpose` is a built-in writing agent that has the `Skill`
+        // tool, so the gate enforces and the unloaded skill denies the write.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Deny { .. }
+        ));
+    }
+
+    #[test]
+    fn subagent_without_skill_tool_is_allowed_before_rules() {
+        let (proj, transcript, store, _sd) = setup();
+        // `statusline-setup` is a built-in agent without the `Skill` tool: the
+        // gate returns Allow before any rule is evaluated, even though the
+        // comment write would otherwise match the `comments` rule.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "statusline-setup",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+    }
+
+    #[test]
+    fn subagent_resolved_from_project_file_without_skill_is_allowed() {
+        let (proj, transcript, store, _sd) = setup();
+        // A project agent definition whose `tools` list excludes `Skill`: the
+        // gate resolves it from the file and exempts the write.
+        let agents_dir = proj.path().join(".claude").join("agents");
+        std::fs::create_dir_all(&agents_dir).unwrap();
+        std::fs::write(
+            agents_dir.join("restricted-writer.md"),
+            include_str!("../tests/fixtures/agent-restricted.md"),
+        )
+        .unwrap();
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "restricted-writer",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+    }
+
+    #[test]
+    fn subagent_unresolved_agent_is_allowed() {
+        let (proj, transcript, store, _sd) = setup();
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "some-unknown-plugin-agent",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+    }
+
+    #[test]
+    fn subagent_load_does_not_credit_sibling_subagent() {
+        let (proj, transcript, store, _sd) = setup();
+        // Subagent a1 loads the skill — recorded under its own context key.
+        let post = hook_json(
+            "PostToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Skill",
+            SKILL_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&post, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+        // Sibling subagent a2 writes — its own key is empty, so it is denied.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a2",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Deny { .. }
+        ));
+    }
+
+    #[test]
+    fn root_load_does_not_credit_subagent() {
+        let (proj, transcript, store, _sd) = setup();
+        // Root loads the skill.
+        let post = hook_json(
+            "PostToolUse",
+            "s",
+            "",
+            "",
+            &transcript,
+            proj.path(),
+            "Skill",
+            SKILL_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&post, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+        // Subagent write is still denied — the root load never reached it.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Deny { .. }
+        ));
+    }
+
+    #[test]
+    fn subagent_load_does_not_credit_later_root_write() {
+        let (proj, transcript, store, _sd) = setup();
+        // Subagent loads the skill.
+        let post = hook_json(
+            "PostToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Skill",
+            SKILL_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&post, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+        // A later root write is denied — the subagent load never reached root.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "",
+            "",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
+            Decision::Deny { .. }
+        ));
+    }
+
+    #[test]
+    fn subagent_load_then_same_subagent_write_is_allowed() {
+        let (proj, transcript, store, _sd) = setup();
+        let post = hook_json(
+            "PostToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Skill",
+            SKILL_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&post, &store, proj.path(), None, Harness::Claude),
+            Decision::Allow
+        ));
+        // Same subagent's governed write now passes against its own record.
+        let pre = hook_json(
+            "PreToolUse",
+            "s",
+            "a1",
+            "general-purpose",
+            &transcript,
+            proj.path(),
+            "Write",
+            WRITE_INPUT,
+        );
+        assert!(matches!(
+            run_hook(&pre, &store, proj.path(), None, Harness::Claude),
             Decision::Allow
         ));
     }

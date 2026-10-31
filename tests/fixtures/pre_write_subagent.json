@@ -1,0 +1,1 @@
+{"hook_event_name":"PreToolUse","session_id":"s1","agent_id":"a1b2","agent_type":"general-purpose","transcript_path":"/tmp/t.jsonl","cwd":"/proj","tool_name":"Write","tool_input":{"file_path":"src/lib.rs","content":"// a comment\nfn x() {}"}}
